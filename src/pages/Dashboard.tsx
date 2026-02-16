@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   Calendar,
   Users,
@@ -28,6 +29,7 @@ const statusMap = {
 const Dashboard = () => {
   const { signOut, user } = useAuth();
   const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState("dashboard");
 
   const handleSignOut = async () => {
     await signOut();
@@ -48,17 +50,18 @@ const Dashboard = () => {
         </div>
         <nav className="flex-1 p-3 space-y-1">
           {[
-            { icon: Calendar, label: "Dashboard", active: true },
-            { icon: Users, label: "Clientes" },
-            { icon: Clock, label: "Agendamentos" },
-            { icon: CreditCard, label: "Pagamentos" },
-            { icon: MessageSquare, label: "Mensagens" },
-            { icon: Settings, label: "Configurações" },
+            { icon: Calendar, label: "Dashboard", id: "dashboard" },
+            { icon: Users, label: "Clientes", id: "clientes" },
+            { icon: Clock, label: "Agendamentos", id: "agendamentos" },
+            { icon: CreditCard, label: "Pagamentos", id: "pagamentos" },
+            { icon: MessageSquare, label: "Mensagens", id: "mensagens" },
+            { icon: Settings, label: "Configurações", id: "configuracoes" },
           ].map((item) => (
             <button
-              key={item.label}
+              key={item.id}
+              onClick={() => setActiveTab(item.id)}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                item.active
+                activeTab === item.id
                   ? "bg-primary/10 text-primary"
                   : "text-muted-foreground hover:bg-muted hover:text-foreground"
               }`}
