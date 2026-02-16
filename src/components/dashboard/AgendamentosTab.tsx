@@ -13,6 +13,9 @@ import {
   AlertCircle,
   Eye,
   Loader2,
+  User,
+  CalendarDays,
+  Timer,
 } from "lucide-react";
 import { useAppointments, useClients } from "@/hooks/use-data";
 import { useWorkspace } from "@/hooks/use-workspace";
@@ -54,6 +57,8 @@ const AgendamentosTab = () => {
   const [recurring, setRecurring] = useState(false);
   const [weeks, setWeeks] = useState("4");
   const [saving, setSaving] = useState(false);
+  const [detailApt, setDetailApt] = useState<any>(null);
+  const [updatingStatus, setUpdatingStatus] = useState(false);
 
   const { data: workspace } = useWorkspace();
   const { data: appointments, isLoading } = useAppointments(workspace?.id);
@@ -225,7 +230,10 @@ const AgendamentosTab = () => {
                   <StatusIcon className="h-3.5 w-3.5" />
                   {s.label}
                 </span>
-                <button className="h-8 w-8 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-muted">
+                <button
+                  onClick={() => setDetailApt(apt)}
+                  className="h-8 w-8 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-primary"
+                >
                   <Eye className="h-4 w-4" />
                 </button>
               </div>
@@ -242,6 +250,103 @@ const AgendamentosTab = () => {
           </p>
         </div>
       )}
+      {/* Detail Dialog */}
+      <Dialog open={!!detailApt} onOpenChange={(open) => !open && setDetailApt(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Detalhes do agendamento</DialogTitle>
+          </DialogHeader>
+          {detailApt && (() => {
+            const clientName = (detailApt.clients as any)?.full_name ?? "—";
+            const s = statusConfig[detailApt.status] || statusConfig.scheduled;
+            const StatusIcon = s.icon;
+            const durationMin = Math.round((new Date(detailApt.ends_at).getTime() - new Date(detailApt.starts_at).getTime()) / 60000);
+
+            const handleStatusChange = async (newStatus: string) => {
+              setUpdatingStatus(true);
+              try {
+                const { error } = await supabase
+                  .from("appointments")
+                  .update({ status: newStatus as any })
+                  .eq("id", detailApt.id);
+                if (error) throw error;
+                queryClient.invalidateQueries({ queryKey: ["appointments", workspace?.id] });
+                setDetailApt({ ...detailApt, status: newStatus });
+                toast({ title: "Status atualizado!" });
+              } catch (e: any) {
+                toast({ variant: "destructive", title: "Erro", description: e.message });
+              } finally {
+                setUpdatingStatus(false);
+              }
+            };
+
+            return (
+              <div className="space-y-5 pt-2">
+                <div className="flex items-center gap-3">
+                  <div className="h-11 w-11 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-lg">
+                    {clientName[0]}
+                  </div>
+                  <div>
+                    <p className="font-semibold text-foreground">{clientName}</p>
+                    <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full ${s.className}`}>
+                      <StatusIcon className="h-3.5 w-3.5" />
+                      {s.label}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-4 rounded-lg border border-border p-4">
+                  <div className="flex flex-col items-center gap-1">
+                    <CalendarDays className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-xs text-muted-foreground">Data</span>
+                    <span className="text-sm font-medium text-foreground">{format(new Date(detailApt.starts_at), "dd/MM/yyyy")}</span>
+                  </div>
+                  <div className="flex flex-col items-center gap-1">
+                    <Clock className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-xs text-muted-foreground">Horário</span>
+                    <span className="text-sm font-medium text-foreground">{format(new Date(detailApt.starts_at), "HH:mm")} - {format(new Date(detailApt.ends_at), "HH:mm")}</span>
+                  </div>
+                  <div className="flex flex-col items-center gap-1">
+                    <Timer className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-xs text-muted-foreground">Duração</span>
+                    <span className="text-sm font-medium text-foreground">{durationMin} min</span>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground uppercase tracking-wider">Alterar status</Label>
+                  <Select
+                    value={detailApt.status}
+                    onValueChange={handleStatusChange}
+                    disabled={updatingStatus}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(statusConfig).map(([key, val]) => (
+                        <SelectItem key={key} value={key}>
+                          <span className="flex items-center gap-2">
+                            <val.icon className="h-3.5 w-3.5" />
+                            {val.label}
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {detailApt.notes && (
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground uppercase tracking-wider">Observações</Label>
+                    <p className="text-sm text-foreground">{detailApt.notes}</p>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
