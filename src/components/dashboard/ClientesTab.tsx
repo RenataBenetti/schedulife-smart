@@ -19,6 +19,7 @@ import {
   MessageSquare,
 } from "lucide-react";
 import { useClients, useAddClient, useUpdateClient, useDeleteClient, useSessions, useAddSession, useUpdateSession, useMessageTemplates } from "@/hooks/use-data";
+import { supabase } from "@/integrations/supabase/client";
 import { useWorkspace } from "@/hooks/use-workspace";
 import { useToast } from "@/hooks/use-toast";
 import { useClientTemplates, useToggleClientTemplate } from "@/hooks/use-client-templates";
@@ -62,12 +63,15 @@ const ClientesTab = () => {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [selectedTemplateIds, setSelectedTemplateIds] = useState<string[]>([]);
 
   const { data: workspace } = useWorkspace();
   const { data: clients, isLoading } = useClients(workspace?.id);
+  const { data: templates } = useMessageTemplates(workspace?.id);
   const addClient = useAddClient();
   const updateClient = useUpdateClient();
   const deleteClient = useDeleteClient();
+  const toggleTemplate = useToggleClientTemplate();
   const { toast } = useToast();
 
   const filtered = (clients ?? []).filter((c) =>
@@ -78,14 +82,23 @@ const ClientesTab = () => {
   const handleAdd = async () => {
     if (!workspace || !name.trim()) return;
     try {
-      await addClient.mutateAsync({
+      const newClient = await addClient.mutateAsync({
         workspace_id: workspace.id,
         full_name: name.trim(),
         email: email || undefined,
         phone: phone || undefined,
       });
+      // Save template associations
+      for (const tplId of selectedTemplateIds) {
+        await toggleTemplate.mutateAsync({
+          clientId: newClient.id,
+          templateId: tplId,
+          workspaceId: workspace.id,
+          enabled: true,
+        });
+      }
       toast({ title: "Cliente adicionado!" });
-      setName(""); setEmail(""); setPhone("");
+      setName(""); setEmail(""); setPhone(""); setSelectedTemplateIds([]);
       setOpen(false);
     } catch (e: any) {
       toast({ variant: "destructive", title: "Erro", description: e.message });
@@ -102,6 +115,19 @@ const ClientesTab = () => {
         email: email || null,
         phone: phone || null,
       });
+      // Sync template associations: delete all, re-insert selected
+      await supabase
+        .from("client_message_templates" as any)
+        .delete()
+        .eq("client_id", selectedClient.id);
+      for (const tplId of selectedTemplateIds) {
+        await toggleTemplate.mutateAsync({
+          clientId: selectedClient.id,
+          templateId: tplId,
+          workspaceId: workspace.id,
+          enabled: true,
+        });
+      }
       toast({ title: "Cliente atualizado!" });
       setEditOpen(false);
       setSelectedClient(null);
@@ -122,11 +148,20 @@ const ClientesTab = () => {
     }
   };
 
-  const openEdit = (client: any) => {
+  const openEdit = async (client: any) => {
     setSelectedClient(client);
     setName(client.full_name);
     setEmail(client.email ?? "");
     setPhone(client.phone ?? "");
+    // Load assigned templates
+    if (workspace?.id) {
+      const { data } = await supabase
+        .from("client_message_templates" as any)
+        .select("template_id")
+        .eq("client_id", client.id)
+        .eq("workspace_id", workspace.id);
+      setSelectedTemplateIds((data as any[] ?? []).map((r: any) => r.template_id));
+    }
     setEditOpen(true);
   };
 
@@ -184,6 +219,30 @@ const ClientesTab = () => {
                 <Label>WhatsApp</Label>
                 <Input placeholder="(11) 99999-9999" value={phone} onChange={(e) => setPhone(e.target.value)} />
               </div>
+              {/* Template selection */}
+              {templates && templates.length > 0 && (
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <MessageSquare className="h-3.5 w-3.5" />
+                    Mensagens automáticas
+                  </Label>
+                  <div className="space-y-1 max-h-40 overflow-y-auto rounded-lg border border-border p-2">
+                    {templates.map((tpl) => (
+                      <label key={tpl.id} className="flex items-center gap-2 p-1.5 rounded hover:bg-muted/50 cursor-pointer">
+                        <Checkbox
+                          checked={selectedTemplateIds.includes(tpl.id)}
+                          onCheckedChange={(checked) => {
+                            setSelectedTemplateIds((prev) =>
+                              checked ? [...prev, tpl.id] : prev.filter((id) => id !== tpl.id)
+                            );
+                          }}
+                        />
+                        <span className="text-sm text-foreground">{tpl.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
               <Button variant="hero" onClick={handleAdd} disabled={!name.trim() || addClient.isPending} className="w-full">
                 {addClient.isPending ? "Salvando..." : "Adicionar cliente"}
               </Button>
@@ -271,10 +330,34 @@ const ClientesTab = () => {
             <div className="space-y-2">
               <Label>WhatsApp</Label>
               <Input value={phone} onChange={(e) => setPhone(e.target.value)} />
-            </div>
-            <Button variant="hero" onClick={handleEdit} disabled={!name.trim() || updateClient.isPending} className="w-full">
-              {updateClient.isPending ? "Salvando..." : "Salvar alterações"}
-            </Button>
+              </div>
+              {/* Template selection */}
+              {templates && templates.length > 0 && (
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <MessageSquare className="h-3.5 w-3.5" />
+                    Mensagens automáticas
+                  </Label>
+                  <div className="space-y-1 max-h-40 overflow-y-auto rounded-lg border border-border p-2">
+                    {templates.map((tpl) => (
+                      <label key={tpl.id} className="flex items-center gap-2 p-1.5 rounded hover:bg-muted/50 cursor-pointer">
+                        <Checkbox
+                          checked={selectedTemplateIds.includes(tpl.id)}
+                          onCheckedChange={(checked) => {
+                            setSelectedTemplateIds((prev) =>
+                              checked ? [...prev, tpl.id] : prev.filter((id) => id !== tpl.id)
+                            );
+                          }}
+                        />
+                        <span className="text-sm text-foreground">{tpl.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <Button variant="hero" onClick={handleEdit} disabled={!name.trim() || updateClient.isPending} className="w-full">
+                {updateClient.isPending ? "Salvando..." : "Salvar alterações"}
+              </Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -315,9 +398,6 @@ const ClientDetail = ({ client, workspaceId, onBack }: ClientDetailProps) => {
   const [dateFilter, setDateFilter] = useState("");
 
   const { data: sessions, isLoading } = useSessions(client.id, workspaceId);
-  const { data: templates } = useMessageTemplates(workspaceId);
-  const { data: assignedTemplateIds, isLoading: loadingAssigned } = useClientTemplates(client.id, workspaceId);
-  const toggleTemplate = useToggleClientTemplate();
   const addSession = useAddSession();
   const updateSession = useUpdateSession();
   const { toast } = useToast();
@@ -401,48 +481,7 @@ const ClientDetail = ({ client, workspaceId, onBack }: ClientDetailProps) => {
         </Button>
       </div>
 
-      {/* Message Templates */}
-      <div className="rounded-xl border border-border bg-card p-5 shadow-soft">
-        <div className="flex items-center gap-2 mb-3">
-          <MessageSquare className="h-4 w-4 text-primary" />
-          <h3 className="font-semibold text-foreground text-sm">Mensagens automáticas</h3>
-        </div>
-        {loadingAssigned ? (
-          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-        ) : !templates || templates.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Nenhum template criado. Crie templates na aba Mensagens.</p>
-        ) : (
-          <div className="space-y-2">
-            {templates.map((tpl) => {
-              const isChecked = (assignedTemplateIds ?? []).includes(tpl.id);
-              return (
-                <label
-                  key={tpl.id}
-                  className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 cursor-pointer transition-colors"
-                >
-                  <Checkbox
-                    checked={isChecked}
-                    disabled={toggleTemplate.isPending}
-                    onCheckedChange={(checked) => {
-                      if (!workspaceId) return;
-                      toggleTemplate.mutate({
-                        clientId: client.id,
-                        templateId: tpl.id,
-                        workspaceId,
-                        enabled: !!checked,
-                      });
-                    }}
-                  />
-                  <div className="flex-1 min-w-0">
-                    <span className="text-sm font-medium text-foreground">{tpl.name}</span>
-                    <p className="text-xs text-muted-foreground line-clamp-1">{tpl.body}</p>
-                  </div>
-                </label>
-              );
-            })}
-          </div>
-        )}
-      </div>
+
 
       {/* Session notes list */}
       {isLoading ? (
