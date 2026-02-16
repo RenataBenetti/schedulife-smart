@@ -13,6 +13,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import ClientesTab from "@/components/dashboard/ClientesTab";
+import AgendamentosTab from "@/components/dashboard/AgendamentosTab";
+import PagamentosTab from "@/components/dashboard/PagamentosTab";
+import MensagensTab from "@/components/dashboard/MensagensTab";
+import ConfiguracoesTab from "@/components/dashboard/ConfiguracoesTab";
 
 const todaySessions = [
   { time: "09:00", client: "Ana Souza", status: "confirmed" as const },
@@ -26,6 +31,15 @@ const statusMap = {
   pending: { label: "Pendente", className: "bg-secondary/10 text-secondary" },
 };
 
+const tabs = [
+  { icon: Calendar, label: "Dashboard", id: "dashboard", subtitle: "Visão geral do seu dia" },
+  { icon: Users, label: "Clientes", id: "clientes", subtitle: "Gerencie seus clientes" },
+  { icon: Clock, label: "Agendamentos", id: "agendamentos", subtitle: "Sua agenda completa" },
+  { icon: CreditCard, label: "Pagamentos", id: "pagamentos", subtitle: "Cobranças e recebimentos" },
+  { icon: MessageSquare, label: "Mensagens", id: "mensagens", subtitle: "Templates e histórico" },
+  { icon: Settings, label: "Configurações", id: "configuracoes", subtitle: "Preferências do sistema" },
+];
+
 const Dashboard = () => {
   const { signOut, user } = useAuth();
   const navigate = useNavigate();
@@ -35,6 +49,9 @@ const Dashboard = () => {
     await signOut();
     navigate("/login");
   };
+
+  const currentTab = tabs.find((t) => t.id === activeTab) || tabs[0];
+  const userInitial = user?.user_metadata?.full_name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || "U";
 
   return (
     <div className="min-h-screen bg-background flex">
@@ -49,14 +66,7 @@ const Dashboard = () => {
           </Link>
         </div>
         <nav className="flex-1 p-3 space-y-1">
-          {[
-            { icon: Calendar, label: "Dashboard", id: "dashboard" },
-            { icon: Users, label: "Clientes", id: "clientes" },
-            { icon: Clock, label: "Agendamentos", id: "agendamentos" },
-            { icon: CreditCard, label: "Pagamentos", id: "pagamentos" },
-            { icon: MessageSquare, label: "Mensagens", id: "mensagens" },
-            { icon: Settings, label: "Configurações", id: "configuracoes" },
-          ].map((item) => (
+          {tabs.map((item) => (
             <button
               key={item.id}
               onClick={() => setActiveTab(item.id)}
@@ -87,79 +97,79 @@ const Dashboard = () => {
         {/* Top bar */}
         <div className="border-b border-border bg-card px-6 py-4 flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-bold text-foreground">Dashboard</h1>
-            <p className="text-sm text-muted-foreground">Visão geral do seu dia</p>
+            <h1 className="text-xl font-bold text-foreground">{currentTab.label}</h1>
+            <p className="text-sm text-muted-foreground">{currentTab.subtitle}</p>
           </div>
           <div className="flex items-center gap-3">
             <button className="h-9 w-9 rounded-lg border border-border flex items-center justify-center text-muted-foreground hover:bg-muted">
               <Bell className="h-4 w-4" />
             </button>
             <div className="h-9 w-9 rounded-full gradient-primary flex items-center justify-center text-primary-foreground text-sm font-bold">
-              A
+              {userInitial}
             </div>
           </div>
         </div>
 
-        <div className="p-6 space-y-6">
-          {/* Stats */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            {[
-              { label: "Sessões hoje", value: "4", icon: Clock, change: "+2 vs ontem" },
-              { label: "Pendentes", value: "2", icon: Bell, change: "aguardando confirmação" },
-              { label: "Pagamentos pendentes", value: "R$ 580", icon: CreditCard, change: "3 cobranças" },
-              { label: "Mensagens no mês", value: "127", icon: MessageSquare, change: "de 500" },
-            ].map((stat) => (
-              <div
-                key={stat.label}
-                className="rounded-xl border border-border bg-card p-5 shadow-soft"
-              >
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-sm text-muted-foreground">{stat.label}</span>
-                  <stat.icon className="h-4 w-4 text-muted-foreground" />
-                </div>
-                <p className="text-2xl font-bold text-foreground">{stat.value}</p>
-                <p className="text-xs text-muted-foreground mt-1">{stat.change}</p>
-              </div>
-            ))}
-          </div>
-
-          {/* Today's sessions */}
-          <div className="rounded-xl border border-border bg-card shadow-soft">
-            <div className="px-5 py-4 border-b border-border flex items-center justify-between">
-              <h2 className="font-semibold text-foreground">Sessões de hoje</h2>
-              <Button variant="ghost" size="sm">
-                Ver todas
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
-            <div className="divide-y divide-border">
-              {todaySessions.map((session) => (
-                <div
-                  key={session.time + session.client}
-                  className="px-5 py-4 flex items-center justify-between"
-                >
-                  <div className="flex items-center gap-4">
-                    <span className="text-sm font-mono font-medium text-foreground w-14">
-                      {session.time}
-                    </span>
-                    <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold text-sm">
-                      {session.client[0]}
-                    </div>
-                    <span className="font-medium text-foreground">{session.client}</span>
-                  </div>
-                  <span
-                    className={`text-xs font-medium px-2.5 py-1 rounded-full ${statusMap[session.status].className}`}
-                  >
-                    {statusMap[session.status].label}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
+        <div className="p-6">
+          {activeTab === "dashboard" && <DashboardContent />}
+          {activeTab === "clientes" && <ClientesTab />}
+          {activeTab === "agendamentos" && <AgendamentosTab />}
+          {activeTab === "pagamentos" && <PagamentosTab />}
+          {activeTab === "mensagens" && <MensagensTab />}
+          {activeTab === "configuracoes" && <ConfiguracoesTab />}
         </div>
       </main>
     </div>
   );
 };
+
+/** Original dashboard overview content */
+const DashboardContent = () => (
+  <div className="space-y-6">
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      {[
+        { label: "Sessões hoje", value: "4", icon: Clock, change: "+2 vs ontem" },
+        { label: "Pendentes", value: "2", icon: Bell, change: "aguardando confirmação" },
+        { label: "Pagamentos pendentes", value: "R$ 580", icon: CreditCard, change: "3 cobranças" },
+        { label: "Mensagens no mês", value: "127", icon: MessageSquare, change: "de 500" },
+      ].map((stat) => (
+        <div key={stat.label} className="rounded-xl border border-border bg-card p-5 shadow-soft">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-sm text-muted-foreground">{stat.label}</span>
+            <stat.icon className="h-4 w-4 text-muted-foreground" />
+          </div>
+          <p className="text-2xl font-bold text-foreground">{stat.value}</p>
+          <p className="text-xs text-muted-foreground mt-1">{stat.change}</p>
+        </div>
+      ))}
+    </div>
+
+    <div className="rounded-xl border border-border bg-card shadow-soft">
+      <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+        <h2 className="font-semibold text-foreground">Sessões de hoje</h2>
+        <Button variant="ghost" size="sm">
+          Ver todas
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+      </div>
+      <div className="divide-y divide-border">
+        {todaySessions.map((session) => (
+          <div key={session.time + session.client} className="px-5 py-4 flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <span className="text-sm font-mono font-medium text-foreground w-14">{session.time}</span>
+              <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold text-sm">
+                {session.client[0]}
+              </div>
+              <span className="font-medium text-foreground">{session.client}</span>
+            </div>
+            <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${statusMap[session.status].className}`}>
+              {statusMap[session.status].label}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  </div>
+);
 
 export default Dashboard;
