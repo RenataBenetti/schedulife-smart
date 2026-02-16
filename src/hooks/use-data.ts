@@ -255,6 +255,34 @@ export const useWhatsappConfig = (workspaceId: string | undefined) => {
   });
 };
 
+export const useAddPaymentLink = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (link: { workspace_id: string; client_id: string; amount_cents: number; external_link?: string }) => {
+      const { data, error } = await supabase.from("payment_links").insert(link).select().single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["payment_links", data.workspace_id] });
+    },
+  });
+};
+
+export const useUpdatePaymentLink = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, workspace_id, ...updates }: { id: string; workspace_id: string; paid?: boolean }) => {
+      const { data, error } = await supabase.from("payment_links").update(updates).eq("id", id).select().single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["payment_links", data.workspace_id] });
+    },
+  });
+};
+
 export const useGoogleCalendarConfig = (workspaceId: string | undefined) => {
   return useQuery({
     queryKey: ["google_calendar_config", workspaceId],
