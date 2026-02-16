@@ -200,6 +200,7 @@ export type Database = {
           body: string
           created_at: string
           id: string
+          message_type: string
           name: string
           updated_at: string
           workspace_id: string
@@ -208,6 +209,7 @@ export type Database = {
           body: string
           created_at?: string
           id?: string
+          message_type?: string
           name: string
           updated_at?: string
           workspace_id: string
@@ -216,6 +218,7 @@ export type Database = {
           body?: string
           created_at?: string
           id?: string
+          message_type?: string
           name?: string
           updated_at?: string
           workspace_id?: string

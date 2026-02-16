@@ -36,8 +36,8 @@ const tabs = [
   { icon: Calendar, label: "Dashboard", id: "dashboard", subtitle: "Visão geral do seu dia" },
   { icon: Users, label: "Clientes", id: "clientes", subtitle: "Gerencie seus clientes" },
   { icon: Clock, label: "Agendamentos", id: "agendamentos", subtitle: "Sua agenda completa" },
+  { icon: MessageSquare, label: "Mensagens", id: "mensagens", subtitle: "Automação de disparos" },
   { icon: CreditCard, label: "Pagamentos", id: "pagamentos", subtitle: "Cobranças e recebimentos" },
-  { icon: MessageSquare, label: "Mensagens", id: "mensagens", subtitle: "Templates e histórico" },
   { icon: Settings, label: "Configurações", id: "configuracoes", subtitle: "Preferências do sistema" },
 ];
 
