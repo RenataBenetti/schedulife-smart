@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Users,
   Plus,
@@ -15,10 +16,12 @@ import {
   FileText,
   ChevronLeft,
   CalendarDays,
+  MessageSquare,
 } from "lucide-react";
-import { useClients, useAddClient, useUpdateClient, useDeleteClient, useSessions, useAddSession, useUpdateSession } from "@/hooks/use-data";
+import { useClients, useAddClient, useUpdateClient, useDeleteClient, useSessions, useAddSession, useUpdateSession, useMessageTemplates } from "@/hooks/use-data";
 import { useWorkspace } from "@/hooks/use-workspace";
 import { useToast } from "@/hooks/use-toast";
+import { useClientTemplates, useToggleClientTemplate } from "@/hooks/use-client-templates";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
@@ -312,6 +315,9 @@ const ClientDetail = ({ client, workspaceId, onBack }: ClientDetailProps) => {
   const [dateFilter, setDateFilter] = useState("");
 
   const { data: sessions, isLoading } = useSessions(client.id, workspaceId);
+  const { data: templates } = useMessageTemplates(workspaceId);
+  const { data: assignedTemplateIds, isLoading: loadingAssigned } = useClientTemplates(client.id, workspaceId);
+  const toggleTemplate = useToggleClientTemplate();
   const addSession = useAddSession();
   const updateSession = useUpdateSession();
   const { toast } = useToast();
@@ -393,6 +399,49 @@ const ClientDetail = ({ client, workspaceId, onBack }: ClientDetailProps) => {
           <Plus className="h-4 w-4" />
           Nova observação
         </Button>
+      </div>
+
+      {/* Message Templates */}
+      <div className="rounded-xl border border-border bg-card p-5 shadow-soft">
+        <div className="flex items-center gap-2 mb-3">
+          <MessageSquare className="h-4 w-4 text-primary" />
+          <h3 className="font-semibold text-foreground text-sm">Mensagens automáticas</h3>
+        </div>
+        {loadingAssigned ? (
+          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+        ) : !templates || templates.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Nenhum template criado. Crie templates na aba Mensagens.</p>
+        ) : (
+          <div className="space-y-2">
+            {templates.map((tpl) => {
+              const isChecked = (assignedTemplateIds ?? []).includes(tpl.id);
+              return (
+                <label
+                  key={tpl.id}
+                  className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 cursor-pointer transition-colors"
+                >
+                  <Checkbox
+                    checked={isChecked}
+                    disabled={toggleTemplate.isPending}
+                    onCheckedChange={(checked) => {
+                      if (!workspaceId) return;
+                      toggleTemplate.mutate({
+                        clientId: client.id,
+                        templateId: tpl.id,
+                        workspaceId,
+                        enabled: !!checked,
+                      });
+                    }}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <span className="text-sm font-medium text-foreground">{tpl.name}</span>
+                    <p className="text-xs text-muted-foreground line-clamp-1">{tpl.body}</p>
+                  </div>
+                </label>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Session notes list */}
