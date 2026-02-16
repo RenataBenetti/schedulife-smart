@@ -32,6 +32,78 @@ export const useAddClient = () => {
   });
 };
 
+export const useUpdateClient = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, workspace_id, ...updates }: { id: string; workspace_id: string; full_name?: string; email?: string | null; phone?: string | null; notes?: string | null }) => {
+      const { data, error } = await supabase.from("clients").update(updates).eq("id", id).select().single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["clients", data.workspace_id] });
+    },
+  });
+};
+
+export const useDeleteClient = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, workspace_id }: { id: string; workspace_id: string }) => {
+      const { error } = await supabase.from("clients").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["clients", variables.workspace_id] });
+    },
+  });
+};
+
+export const useSessions = (clientId: string | undefined, workspaceId: string | undefined) => {
+  return useQuery({
+    queryKey: ["sessions", clientId, workspaceId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("sessions")
+        .select("*, appointments(starts_at, title)")
+        .eq("workspace_id", workspaceId!)
+        .eq("client_id", clientId!)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!clientId && !!workspaceId,
+  });
+};
+
+export const useAddSession = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (session: { workspace_id: string; client_id: string; appointment_id?: string; session_notes?: string }) => {
+      const { data, error } = await supabase.from("sessions").insert(session).select().single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["sessions", data.client_id, data.workspace_id] });
+    },
+  });
+};
+
+export const useUpdateSession = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, client_id, workspace_id, ...rest }: { id: string; session_notes?: string; client_id: string; workspace_id: string }) => {
+      const { data, error } = await supabase.from("sessions").update(rest).eq("id", id).select().single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["sessions", variables.client_id, variables.workspace_id] });
+    },
+  });
+};
+
 export const useAppointments = (workspaceId: string | undefined) => {
   return useQuery({
     queryKey: ["appointments", workspaceId],
