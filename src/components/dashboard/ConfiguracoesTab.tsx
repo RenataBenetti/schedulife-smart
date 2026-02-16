@@ -182,7 +182,6 @@ const ConfiguracoesTab = () => {
               {[
                 { name: "WhatsApp Cloud API", icon: MessageSquare, connected: whatsappCfg?.verified ?? false, status: whatsappCfg?.verified ? "Conectado" : "Não conectado" },
                 { name: "Google Calendar", icon: Calendar, connected: gcalCfg?.connected ?? false, status: gcalCfg?.connected ? "Conectado" : "Não conectado" },
-                { name: "Asaas (Pagamentos)", icon: CreditCard, connected: false, status: "Não conectado" },
               ].map((integration) => (
                 <div key={integration.name} className="rounded-xl border border-border bg-card p-5 shadow-soft flex items-center justify-between">
                   <div className="flex items-center gap-3">
