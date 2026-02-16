@@ -10,7 +10,8 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
 
 const todaySessions = [
   { time: "09:00", client: "Ana Souza", status: "confirmed" as const },
@@ -25,6 +26,14 @@ const statusMap = {
 };
 
 const Dashboard = () => {
+  const { signOut, user } = useAuth();
+  const navigate = useNavigate();
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate("/login");
+  };
+
   return (
     <div className="min-h-screen bg-background flex">
       {/* Sidebar */}
@@ -60,7 +69,10 @@ const Dashboard = () => {
           ))}
         </nav>
         <div className="p-3 border-t border-border">
-          <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground">
+          <button
+            onClick={handleSignOut}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
+          >
             <LogOut className="h-4 w-4" />
             Sair
           </button>
