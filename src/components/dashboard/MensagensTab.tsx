@@ -1,58 +1,57 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   MessageSquare,
   Plus,
-  Search,
-  Send,
   Clock,
-  CheckCheck,
   FileText,
+  Loader2,
 } from "lucide-react";
+import { useMessageTemplates } from "@/hooks/use-data";
+import { useWorkspace } from "@/hooks/use-workspace";
 
-const mockTemplates = [
-  { id: "1", name: "Confirmação de sessão", trigger: "Antes da sessão", offset: "24h antes", active: true, sentCount: 87 },
-  { id: "2", name: "Lembrete de pagamento", trigger: "Após sessão", offset: "1h após", active: true, sentCount: 34 },
-  { id: "3", name: "Boas-vindas", trigger: "Manual", offset: "-", active: false, sentCount: 12 },
-];
-
-const mockRecentMessages = [
-  { id: "1", client: "Ana Souza", template: "Confirmação de sessão", sentAt: "16/02 08:00", status: "delivered" as const },
-  { id: "2", client: "Carlos Lima", template: "Confirmação de sessão", sentAt: "16/02 08:00", status: "read" as const },
-  { id: "3", client: "Beatriz Costa", template: "Lembrete de pagamento", sentAt: "15/02 15:00", status: "delivered" as const },
-  { id: "4", client: "Diego Martins", template: "Confirmação de sessão", sentAt: "15/02 14:00", status: "sent" as const },
-];
-
-const msgStatusConfig = {
-  sent: { label: "Enviada", icon: Send, className: "text-muted-foreground" },
-  delivered: { label: "Entregue", icon: CheckCheck, className: "text-secondary" },
-  read: { label: "Lida", icon: CheckCheck, className: "text-accent" },
+const triggerLabels: Record<string, string> = {
+  antes_da_sessao: "Antes da sessão",
+  apos_confirmacao: "Após confirmação",
+  apos_sessao: "Após sessão",
+  manual: "Manual",
 };
 
 const MensagensTab = () => {
   const [tab, setTab] = useState<"templates" | "historico">("templates");
+  const { data: workspace } = useWorkspace();
+  const { data: templates, isLoading } = useMessageTemplates(workspace?.id);
+
+  const activeCount = (templates ?? []).filter((t) => {
+    const rules = (t as any).message_rules ?? [];
+    return rules.some((r: any) => r.active);
+  }).length;
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="rounded-xl border border-border bg-card p-5 shadow-soft">
-          <p className="text-sm text-muted-foreground mb-1">Mensagens este mês</p>
-          <p className="text-2xl font-bold text-foreground">127</p>
-          <p className="text-xs text-muted-foreground mt-1">de 500 disponíveis</p>
+          <p className="text-sm text-muted-foreground mb-1">Templates criados</p>
+          <p className="text-2xl font-bold text-foreground">{(templates ?? []).length}</p>
         </div>
         <div className="rounded-xl border border-border bg-card p-5 shadow-soft">
-          <p className="text-sm text-muted-foreground mb-1">Taxa de entrega</p>
-          <p className="text-2xl font-bold text-accent">98%</p>
+          <p className="text-sm text-muted-foreground mb-1">Com regras ativas</p>
+          <p className="text-2xl font-bold text-accent">{activeCount}</p>
         </div>
         <div className="rounded-xl border border-border bg-card p-5 shadow-soft">
-          <p className="text-sm text-muted-foreground mb-1">Templates ativos</p>
-          <p className="text-2xl font-bold text-foreground">2</p>
+          <p className="text-sm text-muted-foreground mb-1">Mensagens (em breve)</p>
+          <p className="text-2xl font-bold text-muted-foreground">—</p>
         </div>
       </div>
 
-      {/* Sub-tabs */}
       <div className="flex gap-1 bg-muted p-1 rounded-lg w-fit">
         <button
           onClick={() => setTab("templates")}
@@ -82,56 +81,48 @@ const MensagensTab = () => {
               Novo template
             </Button>
           </div>
-          <div className="grid gap-4">
-            {mockTemplates.map((tpl) => (
-              <div key={tpl.id} className="rounded-xl border border-border bg-card p-5 shadow-soft flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <h3 className="font-semibold text-foreground">{tpl.name}</h3>
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${tpl.active ? "bg-accent/10 text-accent" : "bg-muted text-muted-foreground"}`}>
-                      {tpl.active ? "Ativo" : "Inativo"}
-                    </span>
+
+          {(templates ?? []).length === 0 ? (
+            <div className="text-center py-12">
+              <MessageSquare className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
+              <p className="text-muted-foreground">Nenhum template criado ainda.</p>
+            </div>
+          ) : (
+            <div className="grid gap-4">
+              {(templates ?? []).map((tpl) => {
+                const rules = (tpl as any).message_rules ?? [];
+                const hasActiveRule = rules.some((r: any) => r.active);
+                const firstRule = rules[0];
+                const triggerLabel = firstRule ? triggerLabels[firstRule.trigger] ?? firstRule.trigger : "Sem regra";
+                const offsetLabel = firstRule ? `${firstRule.offset_value} ${firstRule.offset_unit}` : "";
+
+                return (
+                  <div key={tpl.id} className="rounded-xl border border-border bg-card p-5 shadow-soft flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className="font-semibold text-foreground">{tpl.name}</h3>
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${hasActiveRule ? "bg-accent/10 text-accent" : "bg-muted text-muted-foreground"}`}>
+                          {hasActiveRule ? "Ativo" : "Sem regra"}
+                        </span>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        {triggerLabel}{offsetLabel ? ` · ${offsetLabel}` : ""}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1 line-clamp-1">{tpl.body}</p>
+                    </div>
+                    <Button variant="outline" size="sm">Editar</Button>
                   </div>
-                  <p className="text-sm text-muted-foreground">
-                    {tpl.trigger} · {tpl.offset} · {tpl.sentCount} envios
-                  </p>
-                </div>
-                <Button variant="outline" size="sm">Editar</Button>
-              </div>
-            ))}
-          </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
       {tab === "historico" && (
-        <div className="rounded-xl border border-border bg-card shadow-soft overflow-hidden">
-          <div className="hidden sm:grid grid-cols-[1fr_1fr_140px_100px] gap-4 px-5 py-3 border-b border-border bg-muted/50 text-xs font-medium text-muted-foreground uppercase tracking-wider">
-            <span>Cliente</span>
-            <span>Template</span>
-            <span>Enviado em</span>
-            <span>Status</span>
-          </div>
-          <div className="divide-y divide-border">
-            {mockRecentMessages.map((msg) => {
-              const s = msgStatusConfig[msg.status];
-              return (
-                <div key={msg.id} className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_140px_100px] gap-2 sm:gap-4 px-5 py-4 items-center hover:bg-muted/30 transition-colors">
-                  <div className="flex items-center gap-3">
-                    <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold text-sm shrink-0">
-                      {msg.client[0]}
-                    </div>
-                    <span className="font-medium text-foreground">{msg.client}</span>
-                  </div>
-                  <span className="text-sm text-muted-foreground">{msg.template}</span>
-                  <span className="text-sm text-muted-foreground">{msg.sentAt}</span>
-                  <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${s.className}`}>
-                    <s.icon className="h-3.5 w-3.5" />
-                    {s.label}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
+        <div className="text-center py-12">
+          <Clock className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
+          <p className="text-muted-foreground">Histórico de mensagens estará disponível em breve.</p>
         </div>
       )}
     </div>

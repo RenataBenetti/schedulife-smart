@@ -9,26 +9,27 @@ import {
   LogOut,
   Bell,
   ChevronRight,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { useWorkspace } from "@/hooks/use-workspace";
+import { useAppointments, useClients, usePaymentLinks, useMessageTemplates } from "@/hooks/use-data";
+import { format, isToday } from "date-fns";
 import ClientesTab from "@/components/dashboard/ClientesTab";
 import AgendamentosTab from "@/components/dashboard/AgendamentosTab";
 import PagamentosTab from "@/components/dashboard/PagamentosTab";
 import MensagensTab from "@/components/dashboard/MensagensTab";
 import ConfiguracoesTab from "@/components/dashboard/ConfiguracoesTab";
 
-const todaySessions = [
-  { time: "09:00", client: "Ana Souza", status: "confirmed" as const },
-  { time: "10:30", client: "Carlos Lima", status: "pending" as const },
-  { time: "14:00", client: "Beatriz Costa", status: "confirmed" as const },
-  { time: "16:00", client: "Diego Martins", status: "pending" as const },
-];
-
-const statusMap = {
+const statusMap: Record<string, { label: string; className: string }> = {
   confirmed: { label: "Confirmado", className: "bg-accent/10 text-accent" },
   pending: { label: "Pendente", className: "bg-secondary/10 text-secondary" },
+  scheduled: { label: "Agendado", className: "bg-primary/10 text-primary" },
+  canceled: { label: "Cancelado", className: "bg-destructive/10 text-destructive" },
+  completed: { label: "Concluído", className: "bg-accent/10 text-accent" },
+  no_show: { label: "Faltou", className: "bg-destructive/10 text-destructive" },
 };
 
 const tabs = [
@@ -55,7 +56,6 @@ const Dashboard = () => {
 
   return (
     <div className="min-h-screen bg-background flex">
-      {/* Sidebar */}
       <aside className="hidden md:flex w-64 flex-col border-r border-border bg-card">
         <div className="p-4 border-b border-border">
           <Link to="/" className="flex items-center gap-2">
@@ -92,9 +92,7 @@ const Dashboard = () => {
         </div>
       </aside>
 
-      {/* Main content */}
       <main className="flex-1 overflow-auto">
-        {/* Top bar */}
         <div className="border-b border-border bg-card px-6 py-4 flex items-center justify-between">
           <div>
             <h1 className="text-xl font-bold text-foreground">{currentTab.label}</h1>
@@ -123,53 +121,83 @@ const Dashboard = () => {
   );
 };
 
-/** Original dashboard overview content */
-const DashboardContent = () => (
-  <div className="space-y-6">
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-      {[
-        { label: "Sessões hoje", value: "4", icon: Clock, change: "+2 vs ontem" },
-        { label: "Pendentes", value: "2", icon: Bell, change: "aguardando confirmação" },
-        { label: "Pagamentos pendentes", value: "R$ 580", icon: CreditCard, change: "3 cobranças" },
-        { label: "Mensagens no mês", value: "127", icon: MessageSquare, change: "de 500" },
-      ].map((stat) => (
-        <div key={stat.label} className="rounded-xl border border-border bg-card p-5 shadow-soft">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-sm text-muted-foreground">{stat.label}</span>
-            <stat.icon className="h-4 w-4 text-muted-foreground" />
-          </div>
-          <p className="text-2xl font-bold text-foreground">{stat.value}</p>
-          <p className="text-xs text-muted-foreground mt-1">{stat.change}</p>
-        </div>
-      ))}
-    </div>
+const DashboardContent = () => {
+  const { data: workspace } = useWorkspace();
+  const { data: appointments, isLoading: aptsLoading } = useAppointments(workspace?.id);
+  const { data: clients } = useClients(workspace?.id);
+  const { data: payments } = usePaymentLinks(workspace?.id);
+  const { data: templates } = useMessageTemplates(workspace?.id);
 
-    <div className="rounded-xl border border-border bg-card shadow-soft">
-      <div className="px-5 py-4 border-b border-border flex items-center justify-between">
-        <h2 className="font-semibold text-foreground">Sessões de hoje</h2>
-        <Button variant="ghost" size="sm">
-          Ver todas
-          <ChevronRight className="h-4 w-4" />
-        </Button>
-      </div>
-      <div className="divide-y divide-border">
-        {todaySessions.map((session) => (
-          <div key={session.time + session.client} className="px-5 py-4 flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <span className="text-sm font-mono font-medium text-foreground w-14">{session.time}</span>
-              <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold text-sm">
-                {session.client[0]}
-              </div>
-              <span className="font-medium text-foreground">{session.client}</span>
+  const todayAppointments = (appointments ?? []).filter((a) => isToday(new Date(a.starts_at)));
+  const pendingCount = todayAppointments.filter((a) => a.status === "scheduled").length;
+  const pendingPayments = (payments ?? []).filter((p) => !p.paid);
+  const pendingPaymentTotal = pendingPayments.reduce((sum, p) => sum + p.amount_cents, 0);
+
+  const formatCents = (cents: number) => `R$ ${(cents / 100).toLocaleString("pt-BR", { minimumFractionDigits: 0 })}`;
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {[
+          { label: "Sessões hoje", value: String(todayAppointments.length), icon: Clock, change: `${clients?.length ?? 0} clientes` },
+          { label: "Pendentes", value: String(pendingCount), icon: Bell, change: "aguardando confirmação" },
+          { label: "Pagamentos pendentes", value: formatCents(pendingPaymentTotal), icon: CreditCard, change: `${pendingPayments.length} cobranças` },
+          { label: "Templates", value: String((templates ?? []).length), icon: MessageSquare, change: "criados" },
+        ].map((stat) => (
+          <div key={stat.label} className="rounded-xl border border-border bg-card p-5 shadow-soft">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm text-muted-foreground">{stat.label}</span>
+              <stat.icon className="h-4 w-4 text-muted-foreground" />
             </div>
-            <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${statusMap[session.status].className}`}>
-              {statusMap[session.status].label}
-            </span>
+            <p className="text-2xl font-bold text-foreground">{stat.value}</p>
+            <p className="text-xs text-muted-foreground mt-1">{stat.change}</p>
           </div>
         ))}
       </div>
+
+      <div className="rounded-xl border border-border bg-card shadow-soft">
+        <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+          <h2 className="font-semibold text-foreground">Sessões de hoje</h2>
+          <Button variant="ghost" size="sm">
+            Ver todas
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
+        {aptsLoading ? (
+          <div className="flex items-center justify-center py-10">
+            <Loader2 className="h-5 w-5 animate-spin text-primary" />
+          </div>
+        ) : todayAppointments.length === 0 ? (
+          <div className="text-center py-10 text-muted-foreground text-sm">
+            Nenhuma sessão agendada para hoje.
+          </div>
+        ) : (
+          <div className="divide-y divide-border">
+            {todayAppointments.map((apt) => {
+              const clientName = (apt.clients as any)?.full_name ?? "—";
+              const s = statusMap[apt.status] || statusMap.scheduled;
+              return (
+                <div key={apt.id} className="px-5 py-4 flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <span className="text-sm font-mono font-medium text-foreground w-14">
+                      {format(new Date(apt.starts_at), "HH:mm")}
+                    </span>
+                    <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold text-sm">
+                      {clientName[0]}
+                    </div>
+                    <span className="font-medium text-foreground">{clientName}</span>
+                  </div>
+                  <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${s.className}`}>
+                    {s.label}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 export default Dashboard;
