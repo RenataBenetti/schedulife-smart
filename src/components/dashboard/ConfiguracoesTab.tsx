@@ -1,26 +1,28 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import {
   User,
-  Building2,
+  Palette,
   Bell,
   MessageSquare,
   CreditCard,
   Calendar,
   Loader2,
+  Upload,
 } from "lucide-react";
 import { useProfile, useUpdateProfile, useUpdateWorkspace, useSubscription, useWhatsappConfig, useGoogleCalendarConfig } from "@/hooks/use-data";
 import { useWorkspace } from "@/hooks/use-workspace";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 
 const sections = [
   { id: "perfil", label: "Perfil", icon: User },
-  { id: "consultorio", label: "Consultório", icon: Building2 },
+  { id: "marca", label: "Marca", icon: Palette },
   { id: "notificacoes", label: "Notificações", icon: Bell },
   { id: "integracoes", label: "Integrações", icon: Calendar },
   { id: "plano", label: "Plano", icon: CreditCard },
@@ -47,10 +49,17 @@ const ConfiguracoesTab = () => {
 
   const [fullName, setFullName] = useState("");
   const [workspaceName, setWorkspaceName] = useState("");
+  const [primaryColor, setPrimaryColor] = useState("");
+  const [secondaryColor, setSecondaryColor] = useState("");
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Initialize form values when data loads
   const profileName = fullName || profile?.full_name || "";
   const wsName = workspaceName || workspace?.name || "";
+  const currentPrimary = primaryColor || (workspace as any)?.primary_color || "#2563EB";
+  const currentSecondary = secondaryColor || (workspace as any)?.secondary_color || "#0EA5E9";
+  const currentLogo = (workspace as any)?.logo_url || "";
 
   if (wsLoading) {
     return (
@@ -70,13 +79,42 @@ const ConfiguracoesTab = () => {
     }
   };
 
-  const handleSaveWorkspace = async () => {
+  const handleSaveBrand = async () => {
     if (!workspace) return;
     try {
-      await updateWorkspace.mutateAsync({ id: workspace.id, name: wsName });
-      toast({ title: "Consultório atualizado!" });
+      await updateWorkspace.mutateAsync({
+        id: workspace.id,
+        name: wsName,
+        primary_color: currentPrimary,
+        secondary_color: currentSecondary,
+      });
+      toast({ title: "Marca atualizada!" });
     } catch (e: any) {
       toast({ variant: "destructive", title: "Erro", description: e.message });
+    }
+  };
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !workspace) return;
+    setUploadingLogo(true);
+    try {
+      const ext = file.name.split(".").pop();
+      const path = `${workspace.id}/logo.${ext}`;
+      const { error: uploadErr } = await supabase.storage
+        .from("logos")
+        .upload(path, file, { upsert: true });
+      if (uploadErr) throw uploadErr;
+
+      const { data: publicData } = supabase.storage.from("logos").getPublicUrl(path);
+      const logoUrl = `${publicData.publicUrl}?t=${Date.now()}`;
+
+      await updateWorkspace.mutateAsync({ id: workspace.id, logo_url: logoUrl });
+      toast({ title: "Logo atualizado!" });
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Erro ao enviar logo", description: err.message });
+    } finally {
+      setUploadingLogo(false);
     }
   };
 
@@ -126,23 +164,105 @@ const ConfiguracoesTab = () => {
           </div>
         )}
 
-        {activeSection === "consultorio" && (
+        {activeSection === "marca" && (
           <div className="space-y-6">
             <div>
-              <h3 className="text-lg font-semibold text-foreground mb-1">Consultório</h3>
-              <p className="text-sm text-muted-foreground">Configurações do seu workspace.</p>
+              <h3 className="text-lg font-semibold text-foreground mb-1">Personalização de Marca</h3>
+              <p className="text-sm text-muted-foreground">Customize a aparência da sua empresa no sistema.</p>
             </div>
-            <div className="rounded-xl border border-border bg-card p-6 shadow-soft space-y-4">
+            <div className="rounded-xl border border-border bg-card p-6 shadow-soft space-y-6">
+              {/* Company name */}
               <div className="space-y-2">
-                <Label>Nome do consultório</Label>
+                <Label>Nome da empresa</Label>
                 <Input placeholder="Ex: Clínica Vida" value={wsName} onChange={(e) => setWorkspaceName(e.target.value)} />
               </div>
+
+              {/* Logo */}
               <div className="space-y-2">
-                <Label>Fuso horário</Label>
-                <Input defaultValue="America/Sao_Paulo" disabled />
+                <Label>Logo</Label>
+                <div className="flex items-center gap-4">
+                  <div className="h-24 w-24 rounded-xl border-2 border-dashed border-border bg-muted/30 flex items-center justify-center overflow-hidden shrink-0">
+                    {currentLogo ? (
+                      <img src={currentLogo} alt="Logo" className="h-full w-full object-contain" />
+                    ) : (
+                      <Upload className="h-8 w-8 text-muted-foreground" />
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      className="hidden"
+                      onChange={handleLogoUpload}
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={uploadingLogo}
+                    >
+                      <Upload className="h-4 w-4 mr-2" />
+                      {uploadingLogo ? "Enviando..." : "Fazer Upload"}
+                    </Button>
+                    <p className="text-xs text-muted-foreground">Recomendado: 200x200px, PNG ou JPG</p>
+                  </div>
+                </div>
               </div>
-              <Button variant="hero" size="sm" onClick={handleSaveWorkspace} disabled={updateWorkspace.isPending}>
-                {updateWorkspace.isPending ? "Salvando..." : "Salvar"}
+
+              {/* Colors */}
+              <div className="grid grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <Label>Cor Primária</Label>
+                  <div className="flex items-center gap-3">
+                    <div className="relative">
+                      <input
+                        type="color"
+                        value={currentPrimary}
+                        onChange={(e) => setPrimaryColor(e.target.value)}
+                        className="h-10 w-14 rounded-lg border border-border cursor-pointer"
+                      />
+                    </div>
+                    <Input
+                      value={currentPrimary}
+                      onChange={(e) => setPrimaryColor(e.target.value)}
+                      className="flex-1 font-mono text-sm"
+                      placeholder="#2563EB"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Cor Secundária</Label>
+                  <div className="flex items-center gap-3">
+                    <div className="relative">
+                      <input
+                        type="color"
+                        value={currentSecondary}
+                        onChange={(e) => setSecondaryColor(e.target.value)}
+                        className="h-10 w-14 rounded-lg border border-border cursor-pointer"
+                      />
+                    </div>
+                    <Input
+                      value={currentSecondary}
+                      onChange={(e) => setSecondaryColor(e.target.value)}
+                      className="flex-1 font-mono text-sm"
+                      placeholder="#0EA5E9"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Preview */}
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground uppercase tracking-wider">Preview</Label>
+                <div className="rounded-lg bg-muted/50 p-4 flex items-center gap-3">
+                  <div className="h-14 w-14 rounded-xl" style={{ backgroundColor: currentPrimary }} />
+                  <div className="h-14 w-14 rounded-xl" style={{ backgroundColor: currentSecondary }} />
+                </div>
+              </div>
+
+              <Button variant="hero" size="sm" onClick={handleSaveBrand} disabled={updateWorkspace.isPending}>
+                {updateWorkspace.isPending ? "Salvando..." : "Salvar Personalização"}
               </Button>
             </div>
           </div>
