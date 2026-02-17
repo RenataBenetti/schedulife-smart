@@ -73,6 +73,7 @@ const ClientesTab = () => {
   const [billingModel, setBillingModel] = useState("sessao_individual");
   const [sessionValue, setSessionValue] = useState("");
   const [billingTiming, setBillingTiming] = useState("depois_da_sessao");
+  const [billingDayOfMonth, setBillingDayOfMonth] = useState("");
   const [clinicalNotes, setClinicalNotes] = useState("");
   const [selectedTemplateIds, setSelectedTemplateIds] = useState<string[]>([]);
 
@@ -102,6 +103,7 @@ const ClientesTab = () => {
         billing_model: billingModel,
         session_value_cents: sessionValue ? Math.round(parseFloat(sessionValue) * 100) : undefined,
         billing_timing: billingTiming,
+        billing_day_of_month: billingModel === "pacote_mensal" && billingDayOfMonth ? parseInt(billingDayOfMonth) : undefined,
       });
       // Save template associations
       for (const tplId of selectedTemplateIds) {
@@ -114,7 +116,7 @@ const ClientesTab = () => {
       }
       toast({ title: "Paciente adicionado!" });
       setName(""); setEmail(""); setPhone(""); setSelectedTemplateIds([]);
-      setBillingModel("sessao_individual"); setSessionValue(""); setBillingTiming("depois_da_sessao"); setClinicalNotes("");
+      setBillingModel("sessao_individual"); setSessionValue(""); setBillingTiming("depois_da_sessao"); setBillingDayOfMonth(""); setClinicalNotes("");
       setOpen(false);
     } catch (e: any) {
       toast({ variant: "destructive", title: "Erro", description: e.message });
@@ -134,6 +136,7 @@ const ClientesTab = () => {
         billing_model: billingModel,
         session_value_cents: sessionValue ? Math.round(parseFloat(sessionValue) * 100) : null,
         billing_timing: billingTiming,
+        billing_day_of_month: billingModel === "pacote_mensal" && billingDayOfMonth ? parseInt(billingDayOfMonth) : null,
       });
       // Sync template associations: delete all, re-insert selected
       await supabase
@@ -176,6 +179,7 @@ const ClientesTab = () => {
     setBillingModel(client.billing_model ?? "sessao_individual");
     setSessionValue(client.session_value_cents ? (client.session_value_cents / 100).toFixed(2) : "");
     setBillingTiming(client.billing_timing ?? "depois_da_sessao");
+    setBillingDayOfMonth(client.billing_day_of_month ? String(client.billing_day_of_month) : "");
     setClinicalNotes(client.notes ?? "");
     // Load assigned templates
     if (workspace?.id) {
@@ -275,6 +279,12 @@ const ClientesTab = () => {
                   </Select>
                 </div>
               </div>
+              {billingModel === "pacote_mensal" && (
+                <div className="space-y-2">
+                  <Label>Dia de cobrança no mês *</Label>
+                  <Input type="number" min="1" max="31" placeholder="Ex: 10" value={billingDayOfMonth} onChange={(e) => setBillingDayOfMonth(e.target.value)} />
+                </div>
+              )}
               <div className="space-y-2">
                 <Label>Notas Clínicas</Label>
                 <Textarea placeholder="Informações adicionais sobre o paciente..." value={clinicalNotes} onChange={(e) => setClinicalNotes(e.target.value)} rows={3} />
@@ -422,6 +432,12 @@ const ClientesTab = () => {
                 </Select>
               </div>
             </div>
+            {billingModel === "pacote_mensal" && (
+              <div className="space-y-2">
+                <Label>Dia de cobrança no mês *</Label>
+                <Input type="number" min="1" max="31" placeholder="Ex: 10" value={billingDayOfMonth} onChange={(e) => setBillingDayOfMonth(e.target.value)} />
+              </div>
+            )}
             <div className="space-y-2">
               <Label>Notas Clínicas</Label>
               <Textarea placeholder="Informações adicionais sobre o paciente..." value={clinicalNotes} onChange={(e) => setClinicalNotes(e.target.value)} rows={3} />
