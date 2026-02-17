@@ -1,74 +1,87 @@
 
 
-# Plano: Corrigir modelo de pagamentos e integrações
+# Plano: Melhorar formulario de Nova Cobranca com logica inteligente por modelo
 
-## Entendimento correto
+## Contexto
 
-- **Asaas** e usado apenas por voce (Agendix) para cobrar a assinatura R$69/mes dos seus clientes (profissionais). Isso ja esta no fluxo de assinatura (aba Plano). Nao aparece como integracao para o cliente.
-- **Pagamentos dos pacientes**: o profissional (seu cliente) cobra os pacientes dele do jeito que quiser -- Pix de qualquer banco, link de credito, etc. Ele simplesmente cola um link de pagamento na plataforma. A tabela `payment_links` ja tem o campo `external_link` para isso.
-
----
-
-## Mudancas necessarias
-
-### 1. Remover "Asaas (Pagamentos)" da aba Integracoes
-
-A integracao Asaas nao faz sentido para o cliente. Ele nao precisa configurar nada de Asaas. Remover esse card do `ConfiguracoesTab.tsx`.
-
-As integracoes ficam apenas:
-- **WhatsApp Cloud API** -- para disparos automaticos de mensagens
-- **Google Calendar** -- para sincronizar agendamentos
-
-### 2. Aba Pagamentos -- manter como esta
-
-A aba Pagamentos ja funciona com o modelo correto:
-- O profissional cria uma cobranca informando valor e cliente
-- Cola um link de pagamento externo (de qualquer banco, Pix, cartao, etc.)
-- Marca como pago/pendente
-
-O campo `external_link` da tabela `payment_links` ja suporta isso. O botao "Criar cobranca" precisa ser implementado com um formulario simples:
-- Selecionar cliente
-- Valor (R$)
-- Link de pagamento (URL de qualquer banco/plataforma)
-
-### 3. Sua cobranca via Asaas (assinatura do Agendix)
-
-A cobranca que voce faz dos seus clientes (R$69/mes) sera gerenciada:
-- Na aba **Plano & Assinatura** (ja existe em Configuracoes)
-- O botao "Assinar agora" vai integrar com o Asaas para gerar a cobranca da assinatura
-- Essa integracao e interna (suas credenciais do Asaas), o cliente nao precisa saber
+Hoje o formulario "Nova cobranca" tem campos genericos (paciente, valor, link). Mas cada paciente ja tem configurado um **modelo de cobranca** (Sessao Individual, Pacote Mensal, Plano Recorrente) com valor e timing. O formulario precisa ser inteligente e adaptar-se ao modelo do paciente selecionado.
 
 ---
 
-## Implementacao tecnica
+## Cenarios de cobranca
 
-### Arquivo: `src/components/dashboard/ConfiguracoesTab.tsx`
-- Remover o card "Asaas (Pagamentos)" da lista de integracoes
-- Manter apenas WhatsApp e Google Calendar
+```text
++-------------------------+-------------------+--------------------+-------------------+
+| Modelo                  | Valor             | Quando cobrar      | Descricao         |
++-------------------------+-------------------+--------------------+-------------------+
+| Sessao Individual       | Valor da sessao   | Antes ou depois    | Uma cobranca por  |
+|                         | (do cadastro)     | de cada sessao     | sessao realizada   |
++-------------------------+-------------------+--------------------+-------------------+
+| Pacote Mensal           | Valor do pacote   | Uma vez no mes     | Cobranca fixa no  |
+|                         | (definido no      | (dia especifico)   | dia X do mes      |
+|                         |  cadastro)        |                    |                   |
++-------------------------+-------------------+--------------------+-------------------+
+| Plano Recorrente        | Valor recorrente  | Mensal (automatico)| Valor fixo mensal |
+|                         | (do cadastro)     |                    |                   |
++-------------------------+-------------------+--------------------+-------------------+
+```
+
+---
+
+## Comportamento do formulario
+
+### 1. Ao selecionar o paciente
+- Carregar as configuracoes de cobranca do paciente (`billing_model`, `session_value_cents`, `billing_timing`, `billing_day_of_month`)
+- Preencher automaticamente o campo **Valor** com o valor cadastrado
+- Exibir um **resumo informativo** do modelo de cobranca (ex: "Sessao Individual -- cobranca depois da sessao")
+
+### 2. Campos adaptaveis por modelo
+
+**Sessao Individual:**
+- Valor: pre-preenchido com `session_value_cents` do paciente (editavel)
+- Referencia: campo opcional "Sessao de dd/mm/aaaa" (texto livre)
+- Link de pagamento: campo para colar URL
+
+**Pacote Mensal:**
+- Valor: pre-preenchido com valor do pacote (editavel)
+- Referencia: pre-preenchido com "Mensalidade - Mes/Ano" (editavel)
+- Vencimento: exibir info "Vence no dia X" (do cadastro do paciente)
+- Link de pagamento: campo para colar URL
+
+**Plano Recorrente:**
+- Valor: pre-preenchido com valor recorrente (editavel)
+- Referencia: pre-preenchido com "Recorrencia - Mes/Ano"
+- Link de pagamento: campo para colar URL
+
+### 3. Se o paciente nao tem valor configurado
+- Campos ficam vazios para preenchimento manual
+- Exibir aviso sutil: "Este paciente nao tem valor de sessao configurado"
+
+---
+
+## Mudancas tecnicas
+
+### Banco de dados
+- Adicionar coluna `description` (text, nullable) na tabela `payment_links` para guardar a referencia/descricao da cobranca (ex: "Sessao de 17/02", "Mensalidade Fev/2026")
 
 ### Arquivo: `src/components/dashboard/PagamentosTab.tsx`
-- Implementar o formulario "Criar cobranca" com Dialog:
-  - Select de cliente (do workspace)
-  - Input de valor em reais
-  - Input de link externo (URL -- qualquer banco, Pix, cartao)
-- Adicionar mutation `useAddPaymentLink` no `use-data.ts`
-- Permitir marcar como pago/nao pago
+- Ao selecionar paciente no Select, buscar dados de billing do paciente na lista `clients`
+- Auto-preencher valor com `session_value_cents / 100`
+- Adicionar campo **Descricao/Referencia** (texto livre, pre-preenchido conforme modelo)
+- Exibir badge informativo com o modelo de cobranca do paciente
+- Para Pacote Mensal: exibir "Vencimento: dia X" como informacao
+- Exibir a descricao na listagem de cobranças (nova coluna ou subtitulo abaixo do nome)
 
 ### Arquivo: `src/hooks/use-data.ts`
-- Adicionar `useAddPaymentLink` mutation
-- Adicionar `useUpdatePaymentLink` mutation (para marcar pago)
+- Atualizar `useAddPaymentLink` para aceitar o campo `description`
 
-### Nao criar tabela `asaas_config`
-- A integracao Asaas sera implementada futuramente como logica interna do Agendix (para cobrar assinatura), nao como integracao do cliente
+### Labels e terminologia
+- Trocar "Cliente" por "Paciente" nos campos do formulario de cobranca
+- Manter consistencia com o restante da plataforma
 
 ---
 
-## Resumo
+## Resultado visual esperado
 
-| O que | Quem | Como |
-|---|---|---|
-| Assinatura R$69/mes | Agendix cobra o profissional | Asaas (interno, aba Plano) |
-| Cobranca do paciente | Profissional cobra o paciente | Link externo de qualquer banco (aba Pagamentos) |
-| WhatsApp | Profissional configura | Integracao na aba Configuracoes |
-| Google Calendar | Profissional configura | Integracao na aba Configuracoes |
+O formulario fica mais inteligente: ao escolher o paciente, os campos se adaptam e pre-preenchem. O profissional so precisa colar o link de pagamento e confirmar. A descricao ajuda a identificar do que se trata cada cobranca na listagem.
 
