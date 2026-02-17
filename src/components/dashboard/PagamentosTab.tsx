@@ -28,8 +28,20 @@ import {
   Loader2,
   Info,
   AlertCircle,
+  Pencil,
+  Trash2,
 } from "lucide-react";
-import { usePaymentLinks, useClients, useAddPaymentLink, useUpdatePaymentLink } from "@/hooks/use-data";
+import { usePaymentLinks, useClients, useAddPaymentLink, useUpdatePaymentLink, useDeletePaymentLink } from "@/hooks/use-data";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useWorkspace } from "@/hooks/use-workspace";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -56,12 +68,19 @@ const PagamentosTab = () => {
   const [amount, setAmount] = useState("");
   const [externalLink, setExternalLink] = useState("");
   const [description, setDescription] = useState("");
+  const [editingPayment, setEditingPayment] = useState<any>(null);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editAmount, setEditAmount] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editExternalLink, setEditExternalLink] = useState("");
+  const [deletePaymentId, setDeletePaymentId] = useState<string | null>(null);
 
   const { data: workspace } = useWorkspace();
   const { data: payments, isLoading } = usePaymentLinks(workspace?.id);
   const { data: clients } = useClients(workspace?.id);
   const addPayment = useAddPaymentLink();
   const updatePayment = useUpdatePaymentLink();
+  const deletePayment = useDeletePaymentLink();
   const { toast } = useToast();
 
   const selectedClientData = (clients ?? []).find((c) => c.id === selectedClient);
@@ -140,6 +159,48 @@ const PagamentosTab = () => {
     try {
       await updatePayment.mutateAsync({ id: paymentId, workspace_id: workspace.id, paid: !currentPaid });
       toast({ title: !currentPaid ? "Marcado como pago!" : "Marcado como pendente." });
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Erro", description: e.message });
+    }
+  };
+
+  const openEditPayment = (payment: any) => {
+    setEditingPayment(payment);
+    setEditAmount((payment.amount_cents / 100).toFixed(2).replace(".", ","));
+    setEditDescription(payment.description ?? "");
+    setEditExternalLink(payment.external_link ?? "");
+    setEditDialogOpen(true);
+  };
+
+  const handleEditPayment = async () => {
+    if (!workspace || !editingPayment) return;
+    const cents = Math.round(parseFloat(editAmount.replace(/\./g, "").replace(",", ".")) * 100);
+    if (isNaN(cents) || cents <= 0) {
+      toast({ variant: "destructive", title: "Valor inválido" });
+      return;
+    }
+    try {
+      await updatePayment.mutateAsync({
+        id: editingPayment.id,
+        workspace_id: workspace.id,
+        amount_cents: cents,
+        description: editDescription || null,
+        external_link: editExternalLink || null,
+      });
+      toast({ title: "Cobrança atualizada!" });
+      setEditDialogOpen(false);
+      setEditingPayment(null);
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Erro", description: e.message });
+    }
+  };
+
+  const handleDeletePayment = async () => {
+    if (!workspace || !deletePaymentId) return;
+    try {
+      await deletePayment.mutateAsync({ id: deletePaymentId, workspace_id: workspace.id });
+      toast({ title: "Cobrança excluída!" });
+      setDeletePaymentId(null);
     } catch (e: any) {
       toast({ variant: "destructive", title: "Erro", description: e.message });
     }
@@ -261,12 +322,12 @@ const PagamentosTab = () => {
 
       {/* Payment list */}
       <div className="rounded-xl border border-border bg-card shadow-soft overflow-hidden">
-        <div className="hidden sm:grid grid-cols-[1fr_120px_100px_100px_40px] gap-4 px-5 py-3 border-b border-border bg-muted/50 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+        <div className="hidden sm:grid grid-cols-[1fr_120px_100px_100px_80px] gap-4 px-5 py-3 border-b border-border bg-muted/50 text-xs font-medium text-muted-foreground uppercase tracking-wider">
           <span>Paciente</span>
           <span>Valor</span>
           <span>Data</span>
           <span>Status</span>
-          <span></span>
+          <span>Ações</span>
         </div>
         <div className="divide-y divide-border">
           {filtered.map((payment) => {
@@ -274,7 +335,7 @@ const PagamentosTab = () => {
             const isPaid = payment.paid;
             const desc = (payment as any).description;
             return (
-              <div key={payment.id} className="grid grid-cols-1 sm:grid-cols-[1fr_120px_100px_100px_40px] gap-2 sm:gap-4 px-5 py-4 items-center hover:bg-muted/30 transition-colors">
+              <div key={payment.id} className="grid grid-cols-1 sm:grid-cols-[1fr_120px_100px_100px_80px] gap-2 sm:gap-4 px-5 py-4 items-center hover:bg-muted/30 transition-colors">
                 <div className="flex items-center gap-3">
                   <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold text-sm shrink-0">
                     {clientName[0]}
@@ -293,13 +354,22 @@ const PagamentosTab = () => {
                   {isPaid ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Clock className="h-3.5 w-3.5" />}
                   {isPaid ? "Pago" : "Pendente"}
                 </button>
-                {payment.external_link ? (
-                  <a href={payment.external_link} target="_blank" rel="noopener noreferrer" className="h-8 w-8 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-muted">
-                    <ExternalLink className="h-4 w-4" />
-                  </a>
-                ) : (
-                  <div className="h-8 w-8" />
-                )}
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => openEditPayment(payment)}
+                    className="h-8 w-8 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-primary"
+                    title="Editar"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={() => setDeletePaymentId(payment.id)}
+                    className="h-8 w-8 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                    title="Excluir"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
             );
           })}
@@ -314,6 +384,48 @@ const PagamentosTab = () => {
           </p>
         </div>
       )}
+
+      {/* Edit Payment Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={(open) => { setEditDialogOpen(open); if (!open) setEditingPayment(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar cobrança</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label>Valor (R$)</Label>
+              <Input value={editAmount} onChange={(e) => setEditAmount(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>Descrição</Label>
+              <Input value={editDescription} onChange={(e) => setEditDescription(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>Link de pagamento</Label>
+              <Input value={editExternalLink} onChange={(e) => setEditExternalLink(e.target.value)} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="hero" onClick={handleEditPayment} disabled={updatePayment.isPending}>
+              {updatePayment.isPending ? "Salvando..." : "Salvar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation */}
+      <AlertDialog open={!!deletePaymentId} onOpenChange={(open) => !open && setDeletePaymentId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir cobrança?</AlertDialogTitle>
+            <AlertDialogDescription>Esta ação não pode ser desfeita.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeletePayment}>Excluir</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
