@@ -94,8 +94,34 @@ const AgendamentosTab = () => {
       const { error } = await supabase.from("appointments").insert(rows);
       if (error) throw error;
 
+      // Auto-create payment links for "sessao_individual" clients
+      const client = (clients ?? []).find((c) => c.id === clientId);
+      let chargesCreated = 0;
+      if (
+        client?.billing_model === "sessao_individual" &&
+        client.session_value_cents &&
+        client.session_value_cents > 0
+      ) {
+        const paymentRows = rows.map((r) => ({
+          workspace_id: workspace.id,
+          client_id: clientId,
+          amount_cents: client.session_value_cents!,
+          description: `Sessão de ${format(new Date(r.starts_at), "dd/MM/yyyy")}`,
+        }));
+        const { error: payErr } = await supabase.from("payment_links").insert(paymentRows);
+        if (payErr) console.error("Erro ao criar cobranças:", payErr);
+        else chargesCreated = paymentRows.length;
+        queryClient.invalidateQueries({ queryKey: ["payment_links", workspace.id] });
+      }
+
       queryClient.invalidateQueries({ queryKey: ["appointments", workspace.id] });
-      toast({ title: totalWeeks > 1 ? `${totalWeeks} agendamentos criados!` : "Agendamento criado!" });
+      const base = totalWeeks > 1 ? `${totalWeeks} agendamentos criados!` : "Agendamento criado!";
+      toast({
+        title: base,
+        description: chargesCreated > 0
+          ? `${chargesCreated} cobrança(s) gerada(s) automaticamente.`
+          : undefined,
+      });
       setClientId(""); setDate(""); setTime(""); setDuration("50");
       setRecurring(false); setWeeks("4");
       setOpen(false);
