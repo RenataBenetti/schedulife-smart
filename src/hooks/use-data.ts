@@ -272,13 +272,26 @@ export const useAddPaymentLink = () => {
 export const useUpdatePaymentLink = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, workspace_id, ...updates }: { id: string; workspace_id: string; paid?: boolean }) => {
+    mutationFn: async ({ id, workspace_id, ...updates }: { id: string; workspace_id: string; paid?: boolean; amount_cents?: number; description?: string | null; external_link?: string | null }) => {
       const { data, error } = await supabase.from("payment_links").update(updates).eq("id", id).select().single();
       if (error) throw error;
       return data;
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["payment_links", data.workspace_id] });
+    },
+  });
+};
+
+export const useDeletePaymentLink = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, workspace_id }: { id: string; workspace_id: string }) => {
+      const { error } = await supabase.from("payment_links").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["payment_links", variables.workspace_id] });
     },
   });
 };
