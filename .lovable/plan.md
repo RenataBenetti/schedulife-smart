@@ -1,39 +1,55 @@
 
 
-# Plano: Gerar cobranca automaticamente ao criar agendamento (Sessao Individual)
+# Integração Real do Google Calendar
 
-## Resumo
+## Problema Atual
+O botão "Conectar Google Calendar" apenas salva `connected: true` no banco, sem coletar nenhuma informação nem fazer autenticação real com o Google. Nada é conectado de fato.
 
-Quando o profissional criar um agendamento para um paciente com modelo "Sessao Individual" (`sessao_individual`), o sistema criara automaticamente uma cobranca na aba Pagamentos com o valor da sessao e a descricao "Sessao de dd/mm/aaaa".
+## Solução Proposta
 
-## Mudanca
+Implementar o fluxo OAuth 2.0 completo do Google Calendar usando uma edge function como intermediária.
 
-### Arquivo: `src/components/dashboard/AgendamentosTab.tsx`
+### Como vai funcionar para o usuário
+1. Clica em "Conectar Google Calendar"
+2. E redirecionado para a tela de login do Google
+3. Autoriza o acesso a agenda
+4. Volta automaticamente para o app com status "Conectado"
 
-Na funcao `handleAdd`, apos inserir o(s) agendamento(s) com sucesso:
+### Etapas Tecnicas
 
-1. Buscar o paciente selecionado na lista `clients` para acessar `billing_model` e `session_value_cents`
-2. Se `billing_model === "sessao_individual"` **e** `session_value_cents > 0`:
-   - Para **cada agendamento** criado (incluindo recorrencias), inserir um registro em `payment_links` com:
-     - `workspace_id`: workspace atual
-     - `client_id`: paciente selecionado
-     - `amount_cents`: `session_value_cents` do cadastro do paciente
-     - `description`: "Sessao de dd/mm/aaaa" (usando a data do respectivo agendamento)
-3. Exibir no toast uma mensagem complementar informando que a(s) cobranca(s) tambem foram criadas
-4. Invalidar a query `payment_links` para atualizar a aba Pagamentos
+#### 1. Configuracao de Credenciais Google
+- O usuario precisara criar um projeto no Google Cloud Console e obter um **Client ID** e **Client Secret** para OAuth 2.0
+- Esses valores serao armazenados como secrets no backend
 
-### Importacoes necessarias
+#### 2. Edge Function: `google-calendar-auth`
+- Gera a URL de autorizacao OAuth do Google com os escopos necessarios (`calendar.readonly` ou `calendar.events`)
+- Recebe o callback com o codigo de autorizacao
+- Troca o codigo por `access_token` e `refresh_token`
+- Salva os tokens na tabela `google_calendar_config`
 
-- Importar `supabase` (ja importado)
-- Nenhum hook novo necessario -- a insercao sera feita diretamente via `supabase.from("payment_links").insert()` dentro do `handleAdd`, mantendo o padrao ja usado no componente para appointments
+#### 3. Atualizar tabela `google_calendar_config`
+- Adicionar colunas: `access_token`, `refresh_token`, `token_expires_at`
+- Migracao SQL necessaria
 
-### Nenhuma mudanca no banco de dados
+#### 4. Atualizar o Dialog no Frontend
+- Ao clicar "Conectar", chamar a edge function para obter a URL OAuth
+- Redirecionar o usuario para o Google
+- Ao voltar, verificar o estado e atualizar o status
 
-A tabela `payment_links` ja possui todos os campos necessarios (`client_id`, `amount_cents`, `description`, `workspace_id`).
+#### 5. Edge Function: `google-calendar-sync` (opcional/futuro)
+- Usar o `refresh_token` para buscar eventos da agenda
+- Sincronizar com os agendamentos do sistema
 
-## Exemplo pratico
+### Pre-requisitos do Usuario
+O usuario (dono do SaaS) precisara:
+1. Criar um projeto no Google Cloud Console
+2. Ativar a Google Calendar API
+3. Criar credenciais OAuth 2.0 (Web Application)
+4. Fornecer o **Client ID** e **Client Secret**
 
-Paciente "Maria" tem modelo "Sessao Individual" com valor R$ 200,00. O profissional cria um agendamento para 20/02/2026 com recorrencia de 4 semanas. O sistema cria:
-- 4 agendamentos (20/02, 27/02, 06/03, 13/03)
-- 4 cobrancas automaticas de R$ 200,00 cada ("Sessao de 20/02/2026", "Sessao de 27/02/2026", etc.)
+### Arquivos que serao criados/modificados
+- `supabase/functions/google-calendar-auth/index.ts` (nova edge function)
+- `supabase/migrations/...` (adicionar colunas de token)
+- `src/components/dashboard/ConfiguracoesTab.tsx` (atualizar dialog e fluxo)
+- `src/hooks/use-data.ts` (atualizar hook se necessario)
 
