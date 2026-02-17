@@ -13,6 +13,13 @@ import {
   Loader2,
   Upload,
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { useProfile, useUpdateProfile, useUpdateWorkspace, useSubscription, useWhatsappConfig, useGoogleCalendarConfig } from "@/hooks/use-data";
 import { useWorkspace } from "@/hooks/use-workspace";
 import { useAuth } from "@/contexts/AuthContext";
@@ -37,12 +44,19 @@ const statusLabels: Record<string, { label: string; className: string }> = {
 
 const ConfiguracoesTab = () => {
   const [activeSection, setActiveSection] = useState("perfil");
+  const [whatsappDialogOpen, setWhatsappDialogOpen] = useState(false);
+  const [gcalDialogOpen, setGcalDialogOpen] = useState(false);
+  const [waBizId, setWaBizId] = useState("");
+  const [waPhoneId, setWaPhoneId] = useState("");
+  const [waToken, setWaToken] = useState("");
+  const [savingWa, setSavingWa] = useState(false);
+  const [savingGcal, setSavingGcal] = useState(false);
   const { user } = useAuth();
   const { data: workspace, isLoading: wsLoading } = useWorkspace();
   const { data: profile } = useProfile(user?.id);
   const { data: subscription } = useSubscription(workspace?.id);
-  const { data: whatsappCfg } = useWhatsappConfig(workspace?.id);
-  const { data: gcalCfg } = useGoogleCalendarConfig(workspace?.id);
+  const { data: whatsappCfg, refetch: refetchWa } = useWhatsappConfig(workspace?.id);
+  const { data: gcalCfg, refetch: refetchGcal } = useGoogleCalendarConfig(workspace?.id);
   const updateProfile = useUpdateProfile();
   const updateWorkspace = useUpdateWorkspace();
   const { toast } = useToast();
@@ -115,6 +129,66 @@ const ConfiguracoesTab = () => {
       toast({ variant: "destructive", title: "Erro ao enviar logo", description: err.message });
     } finally {
       setUploadingLogo(false);
+    }
+  };
+
+  const handleSaveWhatsapp = async () => {
+    if (!workspace) return;
+    setSavingWa(true);
+    try {
+      const existing = whatsappCfg;
+      if (existing) {
+        const { error } = await supabase.from("whatsapp_config").update({
+          business_id: waBizId,
+          phone_number_id: waPhoneId,
+          access_token: waToken,
+          verified: true,
+        }).eq("id", existing.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("whatsapp_config").insert({
+          workspace_id: workspace.id,
+          business_id: waBizId,
+          phone_number_id: waPhoneId,
+          access_token: waToken,
+          verified: true,
+        });
+        if (error) throw error;
+      }
+      await refetchWa();
+      toast({ title: "WhatsApp conectado!" });
+      setWhatsappDialogOpen(false);
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Erro", description: err.message });
+    } finally {
+      setSavingWa(false);
+    }
+  };
+
+  const handleSaveGoogleCalendar = async () => {
+    if (!workspace) return;
+    setSavingGcal(true);
+    try {
+      const existing = gcalCfg;
+      if (existing) {
+        const { error } = await supabase.from("google_calendar_config").update({
+          connected: true,
+        }).eq("id", existing.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("google_calendar_config").insert({
+          workspace_id: workspace.id,
+          connected: true,
+        });
+        if (error) throw error;
+      }
+      await refetchGcal();
+      toast({ title: "Google Calendar conectado!" });
+      setGcalDialogOpen(false);
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Erro", description: err.message });
+    } finally {
+      setSavingGcal(false);
     }
   };
 
@@ -299,26 +373,102 @@ const ConfiguracoesTab = () => {
               <p className="text-sm text-muted-foreground">Conecte suas ferramentas externas.</p>
             </div>
             <div className="space-y-4">
-              {[
-                { name: "WhatsApp Cloud API", icon: MessageSquare, connected: whatsappCfg?.verified ?? false, status: whatsappCfg?.verified ? "Conectado" : "Não conectado" },
-                { name: "Google Calendar", icon: Calendar, connected: gcalCfg?.connected ?? false, status: gcalCfg?.connected ? "Conectado" : "Não conectado" },
-              ].map((integration) => (
-                <div key={integration.name} className="rounded-xl border border-border bg-card p-5 shadow-soft flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center">
-                      <integration.icon className="h-5 w-5 text-muted-foreground" />
-                    </div>
-                    <div>
-                      <p className="font-medium text-foreground">{integration.name}</p>
-                      <p className={`text-xs ${integration.connected ? "text-accent" : "text-muted-foreground"}`}>{integration.status}</p>
-                    </div>
+              {/* WhatsApp */}
+              <div className="rounded-xl border border-border bg-card p-5 shadow-soft flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center">
+                    <MessageSquare className="h-5 w-5 text-muted-foreground" />
                   </div>
-                  <Button variant={integration.connected ? "outline" : "hero"} size="sm">
-                    {integration.connected ? "Configurar" : "Conectar"}
+                  <div>
+                    <p className="font-medium text-foreground">WhatsApp Cloud API</p>
+                    <p className={`text-xs ${whatsappCfg?.verified ? "text-accent" : "text-muted-foreground"}`}>
+                      {whatsappCfg?.verified ? "Conectado" : "Não conectado"}
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  variant={whatsappCfg?.verified ? "outline" : "hero"}
+                  size="sm"
+                  onClick={() => {
+                    setWaBizId(whatsappCfg?.business_id || "");
+                    setWaPhoneId(whatsappCfg?.phone_number_id || "");
+                    setWaToken(whatsappCfg?.access_token || "");
+                    setWhatsappDialogOpen(true);
+                  }}
+                >
+                  {whatsappCfg?.verified ? "Configurar" : "Conectar"}
+                </Button>
+              </div>
+              {/* Google Calendar */}
+              <div className="rounded-xl border border-border bg-card p-5 shadow-soft flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center">
+                    <Calendar className="h-5 w-5 text-muted-foreground" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-foreground">Google Calendar</p>
+                    <p className={`text-xs ${gcalCfg?.connected ? "text-accent" : "text-muted-foreground"}`}>
+                      {gcalCfg?.connected ? "Conectado" : "Não conectado"}
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  variant={gcalCfg?.connected ? "outline" : "hero"}
+                  size="sm"
+                  onClick={() => setGcalDialogOpen(true)}
+                >
+                  {gcalCfg?.connected ? "Configurar" : "Conectar"}
+                </Button>
+              </div>
+            </div>
+
+            {/* WhatsApp Dialog */}
+            <Dialog open={whatsappDialogOpen} onOpenChange={setWhatsappDialogOpen}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Configurar WhatsApp Cloud API</DialogTitle>
+                  <DialogDescription>Informe os dados da sua conta WhatsApp Business.</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 pt-2">
+                  <div className="space-y-2">
+                    <Label>Business ID</Label>
+                    <Input placeholder="Ex: 123456789012345" value={waBizId} onChange={(e) => setWaBizId(e.target.value)} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Phone Number ID</Label>
+                    <Input placeholder="Ex: 123456789012345" value={waPhoneId} onChange={(e) => setWaPhoneId(e.target.value)} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Access Token</Label>
+                    <Input type="password" placeholder="Token de acesso permanente" value={waToken} onChange={(e) => setWaToken(e.target.value)} />
+                  </div>
+                  <div className="rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground">
+                    <strong className="text-foreground">Nota:</strong> O custo das mensagens é pago diretamente por você à Meta.
+                  </div>
+                  <Button variant="hero" className="w-full" onClick={handleSaveWhatsapp} disabled={savingWa || !waBizId || !waPhoneId || !waToken}>
+                    {savingWa ? "Salvando..." : "Salvar e conectar"}
                   </Button>
                 </div>
-              ))}
-            </div>
+              </DialogContent>
+            </Dialog>
+
+            {/* Google Calendar Dialog */}
+            <Dialog open={gcalDialogOpen} onOpenChange={setGcalDialogOpen}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Conectar Google Calendar</DialogTitle>
+                  <DialogDescription>Sincronize sua agenda para que seus agendamentos apareçam automaticamente.</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 pt-2">
+                  <p className="text-sm text-muted-foreground">
+                    A integração com Google Calendar será habilitada para sincronizar seus agendamentos automaticamente.
+                  </p>
+                  <Button variant="hero" className="w-full" onClick={handleSaveGoogleCalendar} disabled={savingGcal}>
+                    {savingGcal ? "Conectando..." : gcalCfg?.connected ? "Reconectar" : "Conectar Google Calendar"}
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
           </div>
         )}
 
