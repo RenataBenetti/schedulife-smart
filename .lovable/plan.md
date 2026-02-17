@@ -1,87 +1,39 @@
 
 
-# Plano: Melhorar formulario de Nova Cobranca com logica inteligente por modelo
+# Plano: Gerar cobranca automaticamente ao criar agendamento (Sessao Individual)
 
-## Contexto
+## Resumo
 
-Hoje o formulario "Nova cobranca" tem campos genericos (paciente, valor, link). Mas cada paciente ja tem configurado um **modelo de cobranca** (Sessao Individual, Pacote Mensal, Plano Recorrente) com valor e timing. O formulario precisa ser inteligente e adaptar-se ao modelo do paciente selecionado.
+Quando o profissional criar um agendamento para um paciente com modelo "Sessao Individual" (`sessao_individual`), o sistema criara automaticamente uma cobranca na aba Pagamentos com o valor da sessao e a descricao "Sessao de dd/mm/aaaa".
 
----
+## Mudanca
 
-## Cenarios de cobranca
+### Arquivo: `src/components/dashboard/AgendamentosTab.tsx`
 
-```text
-+-------------------------+-------------------+--------------------+-------------------+
-| Modelo                  | Valor             | Quando cobrar      | Descricao         |
-+-------------------------+-------------------+--------------------+-------------------+
-| Sessao Individual       | Valor da sessao   | Antes ou depois    | Uma cobranca por  |
-|                         | (do cadastro)     | de cada sessao     | sessao realizada   |
-+-------------------------+-------------------+--------------------+-------------------+
-| Pacote Mensal           | Valor do pacote   | Uma vez no mes     | Cobranca fixa no  |
-|                         | (definido no      | (dia especifico)   | dia X do mes      |
-|                         |  cadastro)        |                    |                   |
-+-------------------------+-------------------+--------------------+-------------------+
-| Plano Recorrente        | Valor recorrente  | Mensal (automatico)| Valor fixo mensal |
-|                         | (do cadastro)     |                    |                   |
-+-------------------------+-------------------+--------------------+-------------------+
-```
+Na funcao `handleAdd`, apos inserir o(s) agendamento(s) com sucesso:
 
----
+1. Buscar o paciente selecionado na lista `clients` para acessar `billing_model` e `session_value_cents`
+2. Se `billing_model === "sessao_individual"` **e** `session_value_cents > 0`:
+   - Para **cada agendamento** criado (incluindo recorrencias), inserir um registro em `payment_links` com:
+     - `workspace_id`: workspace atual
+     - `client_id`: paciente selecionado
+     - `amount_cents`: `session_value_cents` do cadastro do paciente
+     - `description`: "Sessao de dd/mm/aaaa" (usando a data do respectivo agendamento)
+3. Exibir no toast uma mensagem complementar informando que a(s) cobranca(s) tambem foram criadas
+4. Invalidar a query `payment_links` para atualizar a aba Pagamentos
 
-## Comportamento do formulario
+### Importacoes necessarias
 
-### 1. Ao selecionar o paciente
-- Carregar as configuracoes de cobranca do paciente (`billing_model`, `session_value_cents`, `billing_timing`, `billing_day_of_month`)
-- Preencher automaticamente o campo **Valor** com o valor cadastrado
-- Exibir um **resumo informativo** do modelo de cobranca (ex: "Sessao Individual -- cobranca depois da sessao")
+- Importar `supabase` (ja importado)
+- Nenhum hook novo necessario -- a insercao sera feita diretamente via `supabase.from("payment_links").insert()` dentro do `handleAdd`, mantendo o padrao ja usado no componente para appointments
 
-### 2. Campos adaptaveis por modelo
+### Nenhuma mudanca no banco de dados
 
-**Sessao Individual:**
-- Valor: pre-preenchido com `session_value_cents` do paciente (editavel)
-- Referencia: campo opcional "Sessao de dd/mm/aaaa" (texto livre)
-- Link de pagamento: campo para colar URL
+A tabela `payment_links` ja possui todos os campos necessarios (`client_id`, `amount_cents`, `description`, `workspace_id`).
 
-**Pacote Mensal:**
-- Valor: pre-preenchido com valor do pacote (editavel)
-- Referencia: pre-preenchido com "Mensalidade - Mes/Ano" (editavel)
-- Vencimento: exibir info "Vence no dia X" (do cadastro do paciente)
-- Link de pagamento: campo para colar URL
+## Exemplo pratico
 
-**Plano Recorrente:**
-- Valor: pre-preenchido com valor recorrente (editavel)
-- Referencia: pre-preenchido com "Recorrencia - Mes/Ano"
-- Link de pagamento: campo para colar URL
-
-### 3. Se o paciente nao tem valor configurado
-- Campos ficam vazios para preenchimento manual
-- Exibir aviso sutil: "Este paciente nao tem valor de sessao configurado"
-
----
-
-## Mudancas tecnicas
-
-### Banco de dados
-- Adicionar coluna `description` (text, nullable) na tabela `payment_links` para guardar a referencia/descricao da cobranca (ex: "Sessao de 17/02", "Mensalidade Fev/2026")
-
-### Arquivo: `src/components/dashboard/PagamentosTab.tsx`
-- Ao selecionar paciente no Select, buscar dados de billing do paciente na lista `clients`
-- Auto-preencher valor com `session_value_cents / 100`
-- Adicionar campo **Descricao/Referencia** (texto livre, pre-preenchido conforme modelo)
-- Exibir badge informativo com o modelo de cobranca do paciente
-- Para Pacote Mensal: exibir "Vencimento: dia X" como informacao
-- Exibir a descricao na listagem de cobranças (nova coluna ou subtitulo abaixo do nome)
-
-### Arquivo: `src/hooks/use-data.ts`
-- Atualizar `useAddPaymentLink` para aceitar o campo `description`
-
-### Labels e terminologia
-- Trocar "Cliente" por "Paciente" nos campos do formulario de cobranca
-- Manter consistencia com o restante da plataforma
-
----
-
-## Resultado visual esperado
-
-O formulario fica mais inteligente: ao escolher o paciente, os campos se adaptam e pre-preenchem. O profissional so precisa colar o link de pagamento e confirmar. A descricao ajuda a identificar do que se trata cada cobranca na listagem.
+Paciente "Maria" tem modelo "Sessao Individual" com valor R$ 200,00. O profissional cria um agendamento para 20/02/2026 com recorrencia de 4 semanas. O sistema cria:
+- 4 agendamentos (20/02, 27/02, 06/03, 13/03)
+- 4 cobrancas automaticas de R$ 200,00 cada ("Sessao de 20/02/2026", "Sessao de 27/02/2026", etc.)
 
