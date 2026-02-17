@@ -114,7 +114,33 @@ const ClientesTab = () => {
           enabled: true,
         });
       }
-      toast({ title: "Paciente adicionado!" });
+
+      // Auto-create first charge for "pacote_mensal" or "plano_recorrente"
+      let chargeCreated = false;
+      const valueCents = sessionValue ? Math.round(parseFloat(sessionValue) * 100) : 0;
+      if (
+        (billingModel === "pacote_mensal" || billingModel === "plano_recorrente") &&
+        valueCents > 0
+      ) {
+        const now = new Date();
+        const monthLabel = format(now, "MMMM/yyyy", { locale: ptBR });
+        const desc = billingModel === "pacote_mensal"
+          ? `Mensalidade - ${monthLabel}`
+          : `Recorrência - ${monthLabel}`;
+        const { error: payErr } = await supabase.from("payment_links").insert({
+          workspace_id: workspace.id,
+          client_id: newClient.id,
+          amount_cents: valueCents,
+          description: desc,
+        });
+        if (payErr) console.error("Erro ao criar cobrança:", payErr);
+        else chargeCreated = true;
+      }
+
+      toast({
+        title: "Paciente adicionado!",
+        description: chargeCreated ? "Primeira cobrança gerada automaticamente." : undefined,
+      });
       setName(""); setEmail(""); setPhone(""); setSelectedTemplateIds([]);
       setBillingModel("sessao_individual"); setSessionValue(""); setBillingTiming("depois_da_sessao"); setBillingDayOfMonth(""); setClinicalNotes("");
       setOpen(false);
