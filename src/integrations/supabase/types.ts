@@ -116,6 +116,7 @@ export type Database = {
       }
       clients: {
         Row: {
+          billing_day_of_month: number | null
           billing_model: string | null
           billing_timing: string | null
           created_at: string
@@ -129,6 +130,7 @@ export type Database = {
           workspace_id: string
         }
         Insert: {
+          billing_day_of_month?: number | null
           billing_model?: string | null
           billing_timing?: string | null
           created_at?: string
@@ -142,6 +144,7 @@ export type Database = {
           workspace_id: string
         }
         Update: {
+          billing_day_of_month?: number | null
           billing_model?: string | null
           billing_timing?: string | null
           created_at?: string
