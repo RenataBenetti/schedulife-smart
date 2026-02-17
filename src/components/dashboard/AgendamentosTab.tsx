@@ -97,11 +97,16 @@ const AgendamentosTab = () => {
       // Auto-create payment links for "sessao_individual" clients
       const client = (clients ?? []).find((c) => c.id === clientId);
       let chargesCreated = 0;
-      if (
-        client?.billing_model === "sessao_individual" &&
-        client.session_value_cents &&
-        client.session_value_cents > 0
-      ) {
+      const isSessionBilling = client?.billing_model === "sessao_individual";
+      const hasSessionValue = (client?.session_value_cents ?? 0) > 0;
+      if (isSessionBilling && !hasSessionValue) {
+        toast({
+          variant: "destructive",
+          title: "Valor da sessão não configurado",
+          description: `O cliente "${client?.full_name}" está como Sessão Individual, mas não tem valor de sessão definido. Configure o valor no cadastro do cliente para gerar cobranças automaticamente.`,
+        });
+      }
+      if (isSessionBilling && hasSessionValue) {
         const paymentRows = rows.map((r) => ({
           workspace_id: workspace.id,
           client_id: clientId,
