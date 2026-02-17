@@ -21,7 +21,7 @@ export const useAddClient = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (client: { workspace_id: string; full_name: string; email?: string; phone?: string; notes?: string }) => {
+    mutationFn: async (client: { workspace_id: string; full_name: string; email?: string; phone?: string; notes?: string; billing_model?: string; session_value_cents?: number | null; billing_timing?: string }) => {
       const { data, error } = await supabase.from("clients").insert(client).select().single();
       if (error) throw error;
       return data;
@@ -35,7 +35,7 @@ export const useAddClient = () => {
 export const useUpdateClient = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, workspace_id, ...updates }: { id: string; workspace_id: string; full_name?: string; email?: string | null; phone?: string | null; notes?: string | null }) => {
+    mutationFn: async ({ id, workspace_id, ...updates }: { id: string; workspace_id: string; full_name?: string; email?: string | null; phone?: string | null; notes?: string | null; billing_model?: string; session_value_cents?: number | null; billing_timing?: string }) => {
       const { data, error } = await supabase.from("clients").update(updates).eq("id", id).select().single();
       if (error) throw error;
       return data;

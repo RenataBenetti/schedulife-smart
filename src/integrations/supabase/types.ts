@@ -116,32 +116,41 @@ export type Database = {
       }
       clients: {
         Row: {
+          billing_model: string | null
+          billing_timing: string | null
           created_at: string
           email: string | null
           full_name: string
           id: string
           notes: string | null
           phone: string | null
+          session_value_cents: number | null
           updated_at: string
           workspace_id: string
         }
         Insert: {
+          billing_model?: string | null
+          billing_timing?: string | null
           created_at?: string
           email?: string | null
           full_name: string
           id?: string
           notes?: string | null
           phone?: string | null
+          session_value_cents?: number | null
           updated_at?: string
           workspace_id: string
         }
         Update: {
+          billing_model?: string | null
+          billing_timing?: string | null
           created_at?: string
           email?: string | null
           full_name?: string
           id?: string
           notes?: string | null
           phone?: string | null
+          session_value_cents?: number | null
           updated_at?: string
           workspace_id?: string
         }

@@ -5,6 +5,13 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Users,
   Plus,
   Search,
@@ -63,6 +70,10 @@ const ClientesTab = () => {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [billingModel, setBillingModel] = useState("sessao_individual");
+  const [sessionValue, setSessionValue] = useState("");
+  const [billingTiming, setBillingTiming] = useState("depois_da_sessao");
+  const [clinicalNotes, setClinicalNotes] = useState("");
   const [selectedTemplateIds, setSelectedTemplateIds] = useState<string[]>([]);
 
   const { data: workspace } = useWorkspace();
@@ -87,6 +98,10 @@ const ClientesTab = () => {
         full_name: name.trim(),
         email: email || undefined,
         phone: phone || undefined,
+        notes: clinicalNotes || undefined,
+        billing_model: billingModel,
+        session_value_cents: sessionValue ? Math.round(parseFloat(sessionValue) * 100) : undefined,
+        billing_timing: billingTiming,
       });
       // Save template associations
       for (const tplId of selectedTemplateIds) {
@@ -97,8 +112,9 @@ const ClientesTab = () => {
           enabled: true,
         });
       }
-      toast({ title: "Cliente adicionado!" });
+      toast({ title: "Paciente adicionado!" });
       setName(""); setEmail(""); setPhone(""); setSelectedTemplateIds([]);
+      setBillingModel("sessao_individual"); setSessionValue(""); setBillingTiming("depois_da_sessao"); setClinicalNotes("");
       setOpen(false);
     } catch (e: any) {
       toast({ variant: "destructive", title: "Erro", description: e.message });
@@ -114,6 +130,10 @@ const ClientesTab = () => {
         full_name: name.trim(),
         email: email || null,
         phone: phone || null,
+        notes: clinicalNotes || null,
+        billing_model: billingModel,
+        session_value_cents: sessionValue ? Math.round(parseFloat(sessionValue) * 100) : null,
+        billing_timing: billingTiming,
       });
       // Sync template associations: delete all, re-insert selected
       await supabase
@@ -128,7 +148,7 @@ const ClientesTab = () => {
           enabled: true,
         });
       }
-      toast({ title: "Cliente atualizado!" });
+      toast({ title: "Paciente atualizado!" });
       setEditOpen(false);
       setSelectedClient(null);
     } catch (e: any) {
@@ -140,7 +160,7 @@ const ClientesTab = () => {
     if (!workspace || !selectedClient) return;
     try {
       await deleteClient.mutateAsync({ id: selectedClient.id, workspace_id: workspace.id });
-      toast({ title: "Cliente excluído!" });
+      toast({ title: "Paciente excluído!" });
       setDeleteOpen(false);
       setSelectedClient(null);
     } catch (e: any) {
@@ -153,6 +173,10 @@ const ClientesTab = () => {
     setName(client.full_name);
     setEmail(client.email ?? "");
     setPhone(client.phone ?? "");
+    setBillingModel(client.billing_model ?? "sessao_individual");
+    setSessionValue(client.session_value_cents ? (client.session_value_cents / 100).toFixed(2) : "");
+    setBillingTiming(client.billing_timing ?? "depois_da_sessao");
+    setClinicalNotes(client.notes ?? "");
     // Load assigned templates
     if (workspace?.id) {
       const { data } = await supabase
@@ -193,31 +217,67 @@ const ClientesTab = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Buscar cliente..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+          <Input placeholder="Buscar paciente..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
         </div>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
             <Button variant="hero" size="sm">
               <Plus className="h-4 w-4" />
-              Novo cliente
+              Novo paciente
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Novo cliente</DialogTitle>
+              <DialogTitle>Novo Paciente</DialogTitle>
+              <p className="text-sm text-muted-foreground">Cadastre um novo paciente no sistema. Preencha as informações básicas e configure o modelo de cobrança.</p>
             </DialogHeader>
             <div className="space-y-4 pt-2">
               <div className="space-y-2">
-                <Label>Nome completo *</Label>
-                <Input placeholder="Ex: Maria Silva" value={name} onChange={(e) => setName(e.target.value)} />
+                <Label>Nome Completo *</Label>
+                <Input placeholder="João da Silva" value={name} onChange={(e) => setName(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label>WhatsApp *</Label>
+                <Input placeholder="(11) 98765-4321" value={phone} onChange={(e) => setPhone(e.target.value)} />
               </div>
               <div className="space-y-2">
                 <Label>Email</Label>
-                <Input type="email" placeholder="maria@email.com" value={email} onChange={(e) => setEmail(e.target.value)} />
+                <Input type="email" placeholder="joao@exemplo.com" value={email} onChange={(e) => setEmail(e.target.value)} />
               </div>
               <div className="space-y-2">
-                <Label>WhatsApp</Label>
-                <Input placeholder="(11) 99999-9999" value={phone} onChange={(e) => setPhone(e.target.value)} />
+                <Label>Modelo de Cobrança *</Label>
+                <Select value={billingModel} onValueChange={setBillingModel}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="sessao_individual">Sessão Individual</SelectItem>
+                    <SelectItem value="pacote_mensal">Pacote Mensal</SelectItem>
+                    <SelectItem value="plano_recorrente">Plano Recorrente</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Valor por Sessão (R$) *</Label>
+                  <Input type="number" placeholder="150.00" value={sessionValue} onChange={(e) => setSessionValue(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Cobrança *</Label>
+                  <Select value={billingTiming} onValueChange={setBillingTiming}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="antes_da_sessao">Antes da Sessão</SelectItem>
+                      <SelectItem value="depois_da_sessao">Depois da Sessão</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Notas Clínicas</Label>
+                <Textarea placeholder="Informações adicionais sobre o paciente..." value={clinicalNotes} onChange={(e) => setClinicalNotes(e.target.value)} rows={3} />
               </div>
               {/* Template selection */}
               {templates && templates.length > 0 && (
@@ -244,7 +304,7 @@ const ClientesTab = () => {
                 </div>
               )}
               <Button variant="hero" onClick={handleAdd} disabled={!name.trim() || addClient.isPending} className="w-full">
-                {addClient.isPending ? "Salvando..." : "Adicionar cliente"}
+                {addClient.isPending ? "Salvando..." : "Cadastrar Paciente"}
               </Button>
             </div>
           </DialogContent>
@@ -307,57 +367,92 @@ const ClientesTab = () => {
         <div className="text-center py-12">
           <Users className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
           <p className="text-muted-foreground">
-            {clients?.length === 0 ? "Nenhum cliente cadastrado ainda." : "Nenhum cliente encontrado."}
+            {clients?.length === 0 ? "Nenhum paciente cadastrado ainda." : "Nenhum paciente encontrado."}
           </p>
         </div>
       )}
 
       {/* Edit Dialog */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Editar cliente</DialogTitle>
+            <DialogTitle>Editar Paciente</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 pt-2">
             <div className="space-y-2">
-              <Label>Nome completo *</Label>
+              <Label>Nome Completo *</Label>
               <Input value={name} onChange={(e) => setName(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>WhatsApp *</Label>
+              <Input value={phone} onChange={(e) => setPhone(e.target.value)} />
             </div>
             <div className="space-y-2">
               <Label>Email</Label>
               <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
             </div>
             <div className="space-y-2">
-              <Label>WhatsApp</Label>
-              <Input value={phone} onChange={(e) => setPhone(e.target.value)} />
+              <Label>Modelo de Cobrança *</Label>
+              <Select value={billingModel} onValueChange={setBillingModel}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="sessao_individual">Sessão Individual</SelectItem>
+                  <SelectItem value="pacote_mensal">Pacote Mensal</SelectItem>
+                  <SelectItem value="plano_recorrente">Plano Recorrente</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Valor por Sessão (R$) *</Label>
+                <Input type="number" placeholder="150.00" value={sessionValue} onChange={(e) => setSessionValue(e.target.value)} />
               </div>
-              {/* Template selection */}
-              {templates && templates.length > 0 && (
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-2">
-                    <MessageSquare className="h-3.5 w-3.5" />
-                    Mensagens automáticas
-                  </Label>
-                  <div className="space-y-1 max-h-40 overflow-y-auto rounded-lg border border-border p-2">
-                    {templates.map((tpl) => (
-                      <label key={tpl.id} className="flex items-center gap-2 p-1.5 rounded hover:bg-muted/50 cursor-pointer">
-                        <Checkbox
-                          checked={selectedTemplateIds.includes(tpl.id)}
-                          onCheckedChange={(checked) => {
-                            setSelectedTemplateIds((prev) =>
-                              checked ? [...prev, tpl.id] : prev.filter((id) => id !== tpl.id)
-                            );
-                          }}
-                        />
-                        <span className="text-sm text-foreground">{tpl.name}</span>
-                      </label>
-                    ))}
-                  </div>
+              <div className="space-y-2">
+                <Label>Cobrança *</Label>
+                <Select value={billingTiming} onValueChange={setBillingTiming}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="antes_da_sessao">Antes da Sessão</SelectItem>
+                    <SelectItem value="depois_da_sessao">Depois da Sessão</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Notas Clínicas</Label>
+              <Textarea placeholder="Informações adicionais sobre o paciente..." value={clinicalNotes} onChange={(e) => setClinicalNotes(e.target.value)} rows={3} />
+            </div>
+            {/* Template selection */}
+            {templates && templates.length > 0 && (
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <MessageSquare className="h-3.5 w-3.5" />
+                  Mensagens automáticas
+                </Label>
+                <div className="space-y-1 max-h-40 overflow-y-auto rounded-lg border border-border p-2">
+                  {templates.map((tpl) => (
+                    <label key={tpl.id} className="flex items-center gap-2 p-1.5 rounded hover:bg-muted/50 cursor-pointer">
+                      <Checkbox
+                        checked={selectedTemplateIds.includes(tpl.id)}
+                        onCheckedChange={(checked) => {
+                          setSelectedTemplateIds((prev) =>
+                            checked ? [...prev, tpl.id] : prev.filter((id) => id !== tpl.id)
+                          );
+                        }}
+                      />
+                      <span className="text-sm text-foreground">{tpl.name}</span>
+                    </label>
+                  ))}
                 </div>
-              )}
-              <Button variant="hero" onClick={handleEdit} disabled={!name.trim() || updateClient.isPending} className="w-full">
-                {updateClient.isPending ? "Salvando..." : "Salvar alterações"}
-              </Button>
+              </div>
+            )}
+            <Button variant="hero" onClick={handleEdit} disabled={!name.trim() || updateClient.isPending} className="w-full">
+              {updateClient.isPending ? "Salvando..." : "Salvar alterações"}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -366,7 +461,7 @@ const ClientesTab = () => {
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Excluir cliente</AlertDialogTitle>
+            <AlertDialogTitle>Excluir paciente</AlertDialogTitle>
             <AlertDialogDescription>
               Tem certeza que deseja excluir <strong>{selectedClient?.full_name}</strong>? Esta ação não pode ser desfeita.
             </AlertDialogDescription>
