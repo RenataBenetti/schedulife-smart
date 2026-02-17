@@ -297,6 +297,7 @@ export type Database = {
           appointment_id: string | null
           client_id: string | null
           created_at: string
+          description: string | null
           external_link: string | null
           id: string
           paid: boolean
@@ -307,6 +308,7 @@ export type Database = {
           appointment_id?: string | null
           client_id?: string | null
           created_at?: string
+          description?: string | null
           external_link?: string | null
           id?: string
           paid?: boolean
@@ -317,6 +319,7 @@ export type Database = {
           appointment_id?: string | null
           client_id?: string | null
           created_at?: string
+          description?: string | null
           external_link?: string | null
           id?: string
           paid?: boolean

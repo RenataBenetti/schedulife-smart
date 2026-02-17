@@ -258,7 +258,7 @@ export const useWhatsappConfig = (workspaceId: string | undefined) => {
 export const useAddPaymentLink = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (link: { workspace_id: string; client_id: string; amount_cents: number; external_link?: string }) => {
+    mutationFn: async (link: { workspace_id: string; client_id: string; amount_cents: number; external_link?: string; description?: string }) => {
       const { data, error } = await supabase.from("payment_links").insert(link).select().single();
       if (error) throw error;
       return data;
