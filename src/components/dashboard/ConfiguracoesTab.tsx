@@ -165,29 +165,24 @@ const ConfiguracoesTab = () => {
     }
   };
 
-  const handleSaveGoogleCalendar = async () => {
+  const handleConnectGoogleCalendar = async () => {
     if (!workspace) return;
     setSavingGcal(true);
     try {
-      const existing = gcalCfg;
-      if (existing) {
-        const { error } = await supabase.from("google_calendar_config").update({
-          connected: true,
-        }).eq("id", existing.id);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase.from("google_calendar_config").insert({
-          workspace_id: workspace.id,
-          connected: true,
-        });
-        if (error) throw error;
-      }
-      await refetchGcal();
-      toast({ title: "Google Calendar conectado!" });
-      setGcalDialogOpen(false);
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-calendar-auth`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ workspace_id: workspace.id }),
+        }
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Erro ao gerar URL");
+      // Redirect to Google OAuth
+      window.location.href = data.auth_url;
     } catch (err: any) {
       toast({ variant: "destructive", title: "Erro", description: err.message });
-    } finally {
       setSavingGcal(false);
     }
   };
@@ -463,8 +458,8 @@ const ConfiguracoesTab = () => {
                   <p className="text-sm text-muted-foreground">
                     A integração com Google Calendar será habilitada para sincronizar seus agendamentos automaticamente.
                   </p>
-                  <Button variant="hero" className="w-full" onClick={handleSaveGoogleCalendar} disabled={savingGcal}>
-                    {savingGcal ? "Conectando..." : gcalCfg?.connected ? "Reconectar" : "Conectar Google Calendar"}
+                  <Button variant="hero" className="w-full" onClick={handleConnectGoogleCalendar} disabled={savingGcal}>
+                    {savingGcal ? "Redirecionando..." : gcalCfg?.connected ? "Reconectar" : "Conectar Google Calendar"}
                   </Button>
                 </div>
               </DialogContent>

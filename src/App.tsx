@@ -12,6 +12,7 @@ import ResetPassword from "./pages/ResetPassword";
 import Dashboard from "./pages/Dashboard";
 import SetupWizard from "./pages/SetupWizard";
 import NotFound from "./pages/NotFound";
+import GoogleCalendarCallback from "./pages/GoogleCalendarCallback";
 
 const queryClient = new QueryClient();
 
@@ -29,6 +30,7 @@ const App = () => (
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
             <Route path="/setup" element={<ProtectedRoute><SetupWizard /></ProtectedRoute>} />
+            <Route path="/auth/google-calendar/callback" element={<ProtectedRoute><GoogleCalendarCallback /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
