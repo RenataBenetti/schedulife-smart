@@ -1,55 +1,30 @@
 
 
-# Integração Real do Google Calendar
+# Configurar Secrets e Finalizar Integração Google Calendar
 
-## Problema Atual
-O botão "Conectar Google Calendar" apenas salva `connected: true` no banco, sem coletar nenhuma informação nem fazer autenticação real com o Google. Nada é conectado de fato.
+## Etapa 1 — Solicitar os secrets
+Vou solicitar que voce cole o **Client ID** e o **Client Secret** do Google diretamente no chat. Eles serao armazenados de forma segura no backend como `GOOGLE_CLIENT_ID` e `GOOGLE_CLIENT_SECRET`.
 
-## Solução Proposta
+## Etapa 2 — Criar a Edge Function `google-calendar-auth`
+Uma funcao backend sera criada para:
+- Gerar a URL de autorizacao OAuth do Google (com escopo `calendar.readonly`)
+- Receber o callback com o codigo de autorizacao
+- Trocar o codigo por `access_token` e `refresh_token`
+- Salvar os tokens na tabela `google_calendar_config`
 
-Implementar o fluxo OAuth 2.0 completo do Google Calendar usando uma edge function como intermediária.
+A URL de callback sera: `https://qqkiecshltiqdvfrhgcw.supabase.co/functions/v1/google-calendar-auth`
 
-### Como vai funcionar para o usuário
-1. Clica em "Conectar Google Calendar"
-2. E redirecionado para a tela de login do Google
-3. Autoriza o acesso a agenda
-4. Volta automaticamente para o app com status "Conectado"
+## Etapa 3 — Atualizar o Frontend
+O dialog de Google Calendar em `ConfiguracoesTab.tsx` sera atualizado para:
+- Ao clicar "Conectar", chamar a edge function e redirecionar para o Google
+- Ao retornar do Google, processar o callback e atualizar o status
 
-### Etapas Tecnicas
+## Etapa 4 — Rota de callback no app
+Adicionar uma rota `/auth/google-calendar/callback` no React Router para capturar o retorno do OAuth e finalizar a conexao.
 
-#### 1. Configuracao de Credenciais Google
-- O usuario precisara criar um projeto no Google Cloud Console e obter um **Client ID** e **Client Secret** para OAuth 2.0
-- Esses valores serao armazenados como secrets no backend
-
-#### 2. Edge Function: `google-calendar-auth`
-- Gera a URL de autorizacao OAuth do Google com os escopos necessarios (`calendar.readonly` ou `calendar.events`)
-- Recebe o callback com o codigo de autorizacao
-- Troca o codigo por `access_token` e `refresh_token`
-- Salva os tokens na tabela `google_calendar_config`
-
-#### 3. Atualizar tabela `google_calendar_config`
-- Adicionar colunas: `access_token`, `refresh_token`, `token_expires_at`
-- Migracao SQL necessaria
-
-#### 4. Atualizar o Dialog no Frontend
-- Ao clicar "Conectar", chamar a edge function para obter a URL OAuth
-- Redirecionar o usuario para o Google
-- Ao voltar, verificar o estado e atualizar o status
-
-#### 5. Edge Function: `google-calendar-sync` (opcional/futuro)
-- Usar o `refresh_token` para buscar eventos da agenda
-- Sincronizar com os agendamentos do sistema
-
-### Pre-requisitos do Usuario
-O usuario (dono do SaaS) precisara:
-1. Criar um projeto no Google Cloud Console
-2. Ativar a Google Calendar API
-3. Criar credenciais OAuth 2.0 (Web Application)
-4. Fornecer o **Client ID** e **Client Secret**
-
-### Arquivos que serao criados/modificados
-- `supabase/functions/google-calendar-auth/index.ts` (nova edge function)
-- `supabase/migrations/...` (adicionar colunas de token)
-- `src/components/dashboard/ConfiguracoesTab.tsx` (atualizar dialog e fluxo)
-- `src/hooks/use-data.ts` (atualizar hook se necessario)
+## Arquivos que serao criados/modificados
+- `supabase/functions/google-calendar-auth/index.ts` (novo)
+- `supabase/config.toml` (configurar verify_jwt = false para a funcao)
+- `src/components/dashboard/ConfiguracoesTab.tsx` (atualizar dialog)
+- `src/App.tsx` (adicionar rota de callback)
 
