@@ -223,7 +223,7 @@ export const useUpdateWorkspace = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id, ...updates }: { id: string; name?: string }) => {
+    mutationFn: async ({ id, ...updates }: { id: string; name?: string; logo_url?: string | null; primary_color?: string | null; secondary_color?: string | null }) => {
       const { data, error } = await supabase
         .from("workspaces")
         .update(updates)
