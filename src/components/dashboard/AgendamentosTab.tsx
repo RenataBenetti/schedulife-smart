@@ -142,6 +142,28 @@ const AgendamentosTab = () => {
         queryClient.invalidateQueries({ queryKey: ["payment_links", workspace.id] });
       }
 
+      // Sync to Google Calendar (fire-and-forget, doesn't block UX)
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        const syncPromises = rows.map((r) =>
+          supabase.functions.invoke("sync-to-google-calendar", {
+            body: {
+              workspace_id: workspace.id,
+              client_name: client?.full_name ?? "Cliente",
+              starts_at: r.starts_at,
+              ends_at: r.ends_at,
+            },
+          })
+        );
+        const syncResults = await Promise.allSettled(syncPromises);
+        const syncFailed = syncResults.some(
+          (r) => r.status === "rejected" || (r.status === "fulfilled" && r.value.error)
+        );
+        if (syncFailed) {
+          console.warn("Alguns agendamentos não foram sincronizados com Google Calendar");
+        }
+      }
+
       queryClient.invalidateQueries({ queryKey: ["appointments", workspace.id] });
       const base = totalWeeks > 1 ? `${totalWeeks} agendamentos criados!` : "Agendamento criado!";
       toast({
