@@ -251,7 +251,7 @@ export const useUpdateWorkspace = () => {
       if (error) throw error;
       return data;
     },
-    onSuccess: (data) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["workspace"] });
     },
   });

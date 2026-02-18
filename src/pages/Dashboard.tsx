@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Calendar,
   Users,
@@ -41,10 +41,44 @@ const tabs = [
   { icon: Settings, label: "Configurações", id: "configuracoes", subtitle: "Preferências do sistema" },
 ];
 
+// Helper: convert hex color to "H S% L%" for CSS HSL vars
+function hexToHsl(hex: string): string {
+  const r = parseInt(hex.slice(1, 3), 16) / 255;
+  const g = parseInt(hex.slice(3, 5), 16) / 255;
+  const b = parseInt(hex.slice(5, 7), 16) / 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  let h = 0, s = 0;
+  const l = (max + min) / 2;
+  if (max !== min) {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    switch (max) {
+      case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break;
+      case g: h = ((b - r) / d + 2) / 6; break;
+      case b: h = ((r - g) / d + 4) / 6; break;
+    }
+  }
+  return `${Math.round(h * 360)} ${Math.round(s * 100)}% ${Math.round(l * 100)}%`;
+}
+
 const Dashboard = () => {
   const { signOut, user } = useAuth();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("dashboard");
+  const { data: workspace } = useWorkspace();
+
+  // Apply workspace brand colors as CSS variables
+  useEffect(() => {
+    const root = document.documentElement;
+    const primary = workspace?.primary_color;
+    const secondary = workspace?.secondary_color;
+    if (primary && /^#[0-9A-Fa-f]{6}$/.test(primary)) {
+      root.style.setProperty("--primary", hexToHsl(primary));
+    }
+    if (secondary && /^#[0-9A-Fa-f]{6}$/.test(secondary)) {
+      root.style.setProperty("--secondary", hexToHsl(secondary));
+    }
+  }, [workspace?.primary_color, workspace?.secondary_color]);
 
   const handleSignOut = async () => {
     await signOut();
@@ -57,14 +91,18 @@ const Dashboard = () => {
   return (
     <div className="min-h-screen bg-background flex">
       <aside className="hidden md:flex w-64 flex-col border-r border-border bg-card">
-        <div className="p-4 border-b border-border">
-          <Link to="/" className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg gradient-primary flex items-center justify-center">
-              <Calendar className="h-4 w-4 text-primary-foreground" />
-            </div>
-            <span className="font-bold text-foreground">Agendix</span>
-          </Link>
-        </div>
+         <div className="p-4 border-b border-border">
+           <Link to="/" className="flex items-center gap-2">
+             {workspace?.logo_url ? (
+               <img src={workspace.logo_url} alt="Logo" className="h-8 w-8 rounded-lg object-contain" />
+             ) : (
+               <div className="h-8 w-8 rounded-lg gradient-primary flex items-center justify-center">
+                 <Calendar className="h-4 w-4 text-primary-foreground" />
+               </div>
+             )}
+             <span className="font-bold text-foreground">{workspace?.name || "Agendix"}</span>
+           </Link>
+         </div>
         <nav className="flex-1 p-3 space-y-1">
           {tabs.map((item) => (
             <button
