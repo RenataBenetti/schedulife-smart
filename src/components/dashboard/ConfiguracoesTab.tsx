@@ -413,17 +413,17 @@ const ConfiguracoesTab = () => {
                   </div>
                   <div>
                     <p className="font-medium text-foreground">Google Calendar</p>
-                    <p className={`text-xs ${gcalCfg?.connected ? "text-accent" : "text-muted-foreground"}`}>
-                      {gcalCfg?.connected ? "Conectado" : "Não conectado"}
+                    <p className={`text-xs ${(gcalCfg?.connected && gcalCfg?.access_token) ? "text-accent" : "text-destructive"}`}>
+                      {(gcalCfg?.connected && gcalCfg?.access_token) ? "Conectado" : (gcalCfg?.connected && !gcalCfg?.access_token) ? "Tokens ausentes — reconecte" : "Não conectado"}
                     </p>
                   </div>
                 </div>
                 <Button
-                variant={gcalCfg?.connected ? "outline" : "hero"}
+                variant={(gcalCfg?.connected && gcalCfg?.access_token) ? "outline" : "hero"}
                 size="sm"
                 onClick={() => setGcalDialogOpen(true)}>
 
-                  {gcalCfg?.connected ? "Configurar" : "Conectar"}
+                  {(gcalCfg?.connected && gcalCfg?.access_token) ? "Configurar" : (gcalCfg?.connected && !gcalCfg?.access_token) ? "Reconectar" : "Conectar"}
                 </Button>
               </div>
             </div>
