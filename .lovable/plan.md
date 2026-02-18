@@ -1,30 +1,73 @@
 
 
-# Configurar Secrets e Finalizar Integração Google Calendar
+# Cadastro Completo do Cliente com Link de Autopreenchimento
 
-## Etapa 1 — Solicitar os secrets
-Vou solicitar que voce cole o **Client ID** e o **Client Secret** do Google diretamente no chat. Eles serao armazenados de forma segura no backend como `GOOGLE_CLIENT_ID` e `GOOGLE_CLIENT_SECRET`.
+## O que sera feito
 
-## Etapa 2 — Criar a Edge Function `google-calendar-auth`
-Uma funcao backend sera criada para:
-- Gerar a URL de autorizacao OAuth do Google (com escopo `calendar.readonly`)
-- Receber o callback com o codigo de autorizacao
-- Trocar o codigo por `access_token` e `refresh_token`
-- Salvar os tokens na tabela `google_calendar_config`
+### 1. Novos campos no banco de dados
+Adicionar as seguintes colunas na tabela `clients`:
+- `cpf` (texto, opcional)
+- `rg` (texto, opcional)
+- `address_street` (texto - rua/logradouro)
+- `address_number` (texto - numero)
+- `address_complement` (texto - complemento)
+- `address_neighborhood` (texto - bairro)
+- `address_city` (texto - cidade)
+- `address_state` (texto - estado)
+- `address_zip` (texto - CEP)
 
-A URL de callback sera: `https://qqkiecshltiqdvfrhgcw.supabase.co/functions/v1/google-calendar-auth`
+### 2. Nova tabela de tokens de cadastro
+Criar tabela `client_registration_tokens` para gerar links unicos:
+- `id` (uuid)
+- `workspace_id` (uuid)
+- `client_id` (uuid) — vincula ao cliente ja criado
+- `token` (texto unico) — codigo do link
+- `expires_at` (timestamp) — expiracao do link (ex: 7 dias)
+- `completed` (boolean) — se o cliente ja preencheu
+- Politica RLS para membros do workspace + acesso publico via token
 
-## Etapa 3 — Atualizar o Frontend
-O dialog de Google Calendar em `ConfiguracoesTab.tsx` sera atualizado para:
-- Ao clicar "Conectar", chamar a edge function e redirecionar para o Google
-- Ao retornar do Google, processar o callback e atualizar o status
+### 3. Pagina publica de cadastro
+Criar uma pagina em `/cadastro/:token` que:
+- Nao exige login (eh publica)
+- Valida o token e verifica se nao expirou
+- Mostra formulario com: Nome, CPF, RG, Endereco completo, Telefone, Email
+- Preenche automaticamente os dados ja existentes do cliente
+- Ao submeter, atualiza os dados do cliente via edge function (sem autenticacao)
+- Mostra mensagem de sucesso apos preenchimento
 
-## Etapa 4 — Rota de callback no app
-Adicionar uma rota `/auth/google-calendar/callback` no React Router para capturar o retorno do OAuth e finalizar a conexao.
+### 4. Edge function para salvar dados publicamente
+Criar `client-registration` edge function que:
+- Recebe o token + dados do formulario
+- Valida o token (existe, nao expirou, nao foi usado)
+- Atualiza a tabela `clients` com os dados informados
+- Marca o token como `completed = true`
+
+### 5. Atualizar o frontend do dashboard
+- Adicionar campos CPF, RG e endereco nos dialogs de criar/editar cliente
+- Adicionar botao "Enviar link de cadastro" na listagem e no detalhe do cliente
+- O botao gera o token, monta a URL e copia para a area de transferencia (ou abre opcao de envio via WhatsApp)
+- Mostrar indicador se o cliente ja completou o cadastro
+
+### 6. Fluxo do usuario
+
+```text
+Profissional                          Cliente
+     |                                   |
+     |-- Cria paciente (nome + tel) ---> |
+     |-- Gera link de cadastro --------> |
+     |-- Envia link (WhatsApp/copiar) -> |
+     |                                   |-- Abre link no navegador
+     |                                   |-- Preenche CPF, RG, endereco
+     |                                   |-- Submete formulario
+     |                                   |
+     |<-- Dados atualizados no sistema --|
+```
 
 ## Arquivos que serao criados/modificados
-- `supabase/functions/google-calendar-auth/index.ts` (novo)
-- `supabase/config.toml` (configurar verify_jwt = false para a funcao)
-- `src/components/dashboard/ConfiguracoesTab.tsx` (atualizar dialog)
-- `src/App.tsx` (adicionar rota de callback)
+- **Migracao SQL**: adicionar colunas em `clients` + criar tabela `client_registration_tokens`
+- `supabase/functions/client-registration/index.ts` (nova edge function)
+- `src/pages/ClientRegistration.tsx` (nova pagina publica)
+- `src/App.tsx` (adicionar rota `/cadastro/:token`)
+- `src/components/dashboard/ClientesTab.tsx` (novos campos + botao de link)
+- `src/hooks/use-data.ts` (atualizar tipos dos mutations)
 
