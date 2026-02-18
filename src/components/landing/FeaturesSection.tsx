@@ -13,7 +13,7 @@ import {
 const features = [
   { icon: MessageSquare, title: "WhatsApp Automático", desc: "Confirmações e lembretes enviados automaticamente." },
   { icon: CalendarDays, title: "Google Calendar", desc: "Sincronização bidirecional com sua agenda." },
-  { icon: CreditCard, title: "Link", desc: "Links de pagamento com acompanhamento em tempo real." },
+  { icon: CreditCard, title: "Cobrança via Link", desc: "Links de pagamento com acompanhamento em tempo real." },
   { icon: FileText, title: "Prontuários", desc: "Histórico completo de sessões por cliente." },
   { icon: Bell, title: "Lembretes Inteligentes", desc: "Regras personalizáveis para cada tipo de mensagem." },
   { icon: Users, title: "Multi-profissional", desc: "Workspaces separados para cada profissional ou clínica." },
