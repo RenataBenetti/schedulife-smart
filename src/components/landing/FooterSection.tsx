@@ -13,9 +13,9 @@ export const FooterSection = () => {
             <span className="text-lg font-bold text-background">Agendix</span>
           </div>
           <div className="flex items-center gap-6 text-sm text-background/60">
-            <a href="#" className="hover:text-background transition-colors">Termos de Uso</a>
-            <a href="#" className="hover:text-background transition-colors">Privacidade</a>
-            <a href="#" className="hover:text-background transition-colors">Contato</a>
+            <Link to="/termos" className="hover:text-background transition-colors">Termos de Uso</Link>
+            <Link to="/privacidade" className="hover:text-background transition-colors">Privacidade</Link>
+            <a href="mailto:contato@agendix.com.br" className="hover:text-background transition-colors">Contato</a>
           </div>
           <p className="text-sm text-background/40">
             © 2026 Agendix. Todos os direitos reservados.
