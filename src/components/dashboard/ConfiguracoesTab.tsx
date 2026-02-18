@@ -11,15 +11,15 @@ import {
   CreditCard,
   Calendar,
   Loader2,
-  Upload,
-} from "lucide-react";
+  Upload } from
+"lucide-react";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
+  DialogDescription } from
+"@/components/ui/dialog";
 import { useProfile, useUpdateProfile, useUpdateWorkspace, useSubscription, useWhatsappConfig, useGoogleCalendarConfig } from "@/hooks/use-data";
 import { useWorkspace } from "@/hooks/use-workspace";
 import { useAuth } from "@/contexts/AuthContext";
@@ -28,18 +28,18 @@ import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 
 const sections = [
-  { id: "perfil", label: "Perfil", icon: User },
-  { id: "marca", label: "Marca", icon: Palette },
-  { id: "notificacoes", label: "Notificações", icon: Bell },
-  { id: "integracoes", label: "Integrações", icon: Calendar },
-  { id: "plano", label: "Plano", icon: CreditCard },
-];
+{ id: "perfil", label: "Perfil", icon: User },
+{ id: "marca", label: "Marca", icon: Palette },
+{ id: "notificacoes", label: "Notificações", icon: Bell },
+{ id: "integracoes", label: "Integrações", icon: Calendar },
+{ id: "plano", label: "Plano", icon: CreditCard }];
 
-const statusLabels: Record<string, { label: string; className: string }> = {
+
+const statusLabels: Record<string, {label: string;className: string;}> = {
   trial_active: { label: "Trial ativo", className: "bg-accent/10 text-accent" },
   active: { label: "Ativo", className: "bg-accent/10 text-accent" },
   overdue: { label: "Atrasado", className: "bg-destructive/10 text-destructive" },
-  canceled: { label: "Cancelado", className: "bg-muted text-muted-foreground" },
+  canceled: { label: "Cancelado", className: "bg-muted text-muted-foreground" }
 };
 
 const ConfiguracoesTab = () => {
@@ -82,8 +82,8 @@ const ConfiguracoesTab = () => {
     return (
       <div className="flex items-center justify-center py-20">
         <Loader2 className="h-6 w-6 animate-spin text-primary" />
-      </div>
-    );
+      </div>);
+
   }
 
   const handleSaveProfile = async () => {
@@ -103,7 +103,7 @@ const ConfiguracoesTab = () => {
         id: workspace.id,
         name: wsName,
         primary_color: currentPrimary,
-        secondary_color: currentSecondary,
+        secondary_color: currentSecondary
       });
       toast({ title: "Marca atualizada!" });
     } catch (e: any) {
@@ -118,9 +118,9 @@ const ConfiguracoesTab = () => {
     try {
       const ext = file.name.split(".").pop();
       const path = `${workspace.id}/logo.${ext}`;
-      const { error: uploadErr } = await supabase.storage
-        .from("logos")
-        .upload(path, file, { upsert: true });
+      const { error: uploadErr } = await supabase.storage.
+      from("logos").
+      upload(path, file, { upsert: true });
       if (uploadErr) throw uploadErr;
 
       const { data: publicData } = supabase.storage.from("logos").getPublicUrl(path);
@@ -145,7 +145,7 @@ const ConfiguracoesTab = () => {
           business_id: waBizId,
           phone_number_id: waPhoneId,
           access_token: waToken,
-          verified: true,
+          verified: true
         }).eq("id", existing.id);
         if (error) throw error;
       } else {
@@ -154,7 +154,7 @@ const ConfiguracoesTab = () => {
           business_id: waBizId,
           phone_number_id: waPhoneId,
           access_token: waToken,
-          verified: true,
+          verified: true
         });
         if (error) throw error;
       }
@@ -177,7 +177,7 @@ const ConfiguracoesTab = () => {
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ workspace_id: workspace.id }),
+          body: JSON.stringify({ workspace_id: workspace.id })
         }
       );
       const data = await res.json();
@@ -196,26 +196,26 @@ const ConfiguracoesTab = () => {
     <div className="flex flex-col lg:flex-row gap-6">
       <div className="lg:w-56 shrink-0">
         <div className="flex lg:flex-col gap-1 overflow-x-auto pb-2 lg:pb-0">
-          {sections.map((section) => (
-            <button
-              key={section.id}
-              onClick={() => setActiveSection(section.id)}
-              className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
-                activeSection === section.id
-                  ? "bg-primary/10 text-primary"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
-              }`}
-            >
+          {sections.map((section) =>
+          <button
+            key={section.id}
+            onClick={() => setActiveSection(section.id)}
+            className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
+            activeSection === section.id ?
+            "bg-primary/10 text-primary" :
+            "text-muted-foreground hover:bg-muted hover:text-foreground"}`
+            }>
+
               <section.icon className="h-4 w-4" />
               {section.label}
             </button>
-          ))}
+          )}
         </div>
       </div>
 
       <div className="flex-1 max-w-2xl">
-        {activeSection === "perfil" && (
-          <div className="space-y-6">
+        {activeSection === "perfil" &&
+        <div className="space-y-6">
             <div>
               <h3 className="text-lg font-semibold text-foreground mb-1">Perfil</h3>
               <p className="text-sm text-muted-foreground">Suas informações pessoais.</p>
@@ -234,10 +234,10 @@ const ConfiguracoesTab = () => {
               </Button>
             </div>
           </div>
-        )}
+        }
 
-        {activeSection === "marca" && (
-          <div className="space-y-6">
+        {activeSection === "marca" &&
+        <div className="space-y-6">
             <div>
               <h3 className="text-lg font-semibold text-foreground mb-1">Personalização de Marca</h3>
               <p className="text-sm text-muted-foreground">Customize a aparência da sua empresa no sistema.</p>
@@ -254,26 +254,26 @@ const ConfiguracoesTab = () => {
                 <Label>Logo</Label>
                 <div className="flex items-center gap-4">
                   <div className="h-24 w-24 rounded-xl border-2 border-dashed border-border bg-muted/30 flex items-center justify-center overflow-hidden shrink-0">
-                    {currentLogo ? (
-                      <img src={currentLogo} alt="Logo" className="h-full w-full object-contain" />
-                    ) : (
-                      <Upload className="h-8 w-8 text-muted-foreground" />
-                    )}
+                    {currentLogo ?
+                  <img src={currentLogo} alt="Logo" className="h-full w-full object-contain" /> :
+
+                  <Upload className="h-8 w-8 text-muted-foreground" />
+                  }
                   </div>
                   <div className="space-y-2">
                     <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/png,image/jpeg,image/webp"
-                      className="hidden"
-                      onChange={handleLogoUpload}
-                    />
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    className="hidden"
+                    onChange={handleLogoUpload} />
+
                     <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => fileInputRef.current?.click()}
-                      disabled={uploadingLogo}
-                    >
+                    variant="outline"
+                    size="sm"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploadingLogo}>
+
                       <Upload className="h-4 w-4 mr-2" />
                       {uploadingLogo ? "Enviando..." : "Fazer Upload"}
                     </Button>
@@ -289,18 +289,18 @@ const ConfiguracoesTab = () => {
                   <div className="flex items-center gap-3">
                     <div className="relative">
                       <input
-                        type="color"
-                        value={currentPrimary}
-                        onChange={(e) => setPrimaryColor(e.target.value)}
-                        className="h-10 w-14 rounded-lg border border-border cursor-pointer"
-                      />
-                    </div>
-                    <Input
+                      type="color"
                       value={currentPrimary}
                       onChange={(e) => setPrimaryColor(e.target.value)}
-                      className="flex-1 font-mono text-sm"
-                      placeholder="#2563EB"
-                    />
+                      className="h-10 w-14 rounded-lg border border-border cursor-pointer" />
+
+                    </div>
+                    <Input
+                    value={currentPrimary}
+                    onChange={(e) => setPrimaryColor(e.target.value)}
+                    className="flex-1 font-mono text-sm"
+                    placeholder="#2563EB" />
+
                   </div>
                 </div>
                 <div className="space-y-2">
@@ -308,18 +308,18 @@ const ConfiguracoesTab = () => {
                   <div className="flex items-center gap-3">
                     <div className="relative">
                       <input
-                        type="color"
-                        value={currentSecondary}
-                        onChange={(e) => setSecondaryColor(e.target.value)}
-                        className="h-10 w-14 rounded-lg border border-border cursor-pointer"
-                      />
-                    </div>
-                    <Input
+                      type="color"
                       value={currentSecondary}
                       onChange={(e) => setSecondaryColor(e.target.value)}
-                      className="flex-1 font-mono text-sm"
-                      placeholder="#0EA5E9"
-                    />
+                      className="h-10 w-14 rounded-lg border border-border cursor-pointer" />
+
+                    </div>
+                    <Input
+                    value={currentSecondary}
+                    onChange={(e) => setSecondaryColor(e.target.value)}
+                    className="flex-1 font-mono text-sm"
+                    placeholder="#0EA5E9" />
+
                   </div>
                 </div>
               </div>
@@ -338,10 +338,10 @@ const ConfiguracoesTab = () => {
               </Button>
             </div>
           </div>
-        )}
+        }
 
-        {activeSection === "notificacoes" && (
-          <div className="space-y-6">
+        {activeSection === "notificacoes" &&
+        <div className="space-y-6">
             <div>
               <h3 className="text-lg font-semibold text-foreground mb-1">Notificações</h3>
               <p className="text-sm text-muted-foreground">Configure seus alertas.</p>
@@ -370,10 +370,10 @@ const ConfiguracoesTab = () => {
               </div>
             </div>
           </div>
-        )}
+        }
 
-        {activeSection === "integracoes" && (
-          <div className="space-y-6">
+        {activeSection === "integracoes" &&
+        <div className="space-y-6">
             <div>
               <h3 className="text-lg font-semibold text-foreground mb-1">Integrações</h3>
               <p className="text-sm text-muted-foreground">Conecte suas ferramentas externas.</p>
@@ -393,15 +393,15 @@ const ConfiguracoesTab = () => {
                   </div>
                 </div>
                 <Button
-                  variant={whatsappCfg?.verified ? "outline" : "hero"}
-                  size="sm"
-                  onClick={() => {
-                    setWaBizId(whatsappCfg?.business_id || "");
-                    setWaPhoneId(whatsappCfg?.phone_number_id || "");
-                    setWaToken(whatsappCfg?.access_token || "");
-                    setWhatsappDialogOpen(true);
-                  }}
-                >
+                variant={whatsappCfg?.verified ? "outline" : "hero"}
+                size="sm"
+                onClick={() => {
+                  setWaBizId(whatsappCfg?.business_id || "");
+                  setWaPhoneId(whatsappCfg?.phone_number_id || "");
+                  setWaToken(whatsappCfg?.access_token || "");
+                  setWhatsappDialogOpen(true);
+                }}>
+
                   {whatsappCfg?.verified ? "Configurar" : "Conectar"}
                 </Button>
               </div>
@@ -419,10 +419,10 @@ const ConfiguracoesTab = () => {
                   </div>
                 </div>
                 <Button
-                  variant={gcalCfg?.connected ? "outline" : "hero"}
-                  size="sm"
-                  onClick={() => setGcalDialogOpen(true)}
-                >
+                variant={gcalCfg?.connected ? "outline" : "hero"}
+                size="sm"
+                onClick={() => setGcalDialogOpen(true)}>
+
                   {gcalCfg?.connected ? "Configurar" : "Conectar"}
                 </Button>
               </div>
@@ -476,10 +476,10 @@ const ConfiguracoesTab = () => {
               </DialogContent>
             </Dialog>
           </div>
-        )}
+        }
 
-        {activeSection === "plano" && (
-          <div className="space-y-6">
+        {activeSection === "plano" &&
+        <div className="space-y-6">
             <div>
               <h3 className="text-lg font-semibold text-foreground mb-1">Plano & Assinatura</h3>
               <p className="text-sm text-muted-foreground">Gerencie seu plano.</p>
@@ -488,14 +488,14 @@ const ConfiguracoesTab = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="font-semibold text-foreground">Plano Profissional</p>
-                  <p className="text-sm text-muted-foreground">R$ 69/mês</p>
+                  <p className="text-sm text-muted-foreground">R$ 39/mês</p>
                 </div>
                 <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${planInfo.className}`}>
                   {planInfo.label}
                 </span>
               </div>
-              {subscription && (
-                <div className="border-t border-border pt-4 space-y-2">
+              {subscription &&
+            <div className="border-t border-border pt-4 space-y-2">
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Início do trial</span>
                     <span className="text-foreground">{format(new Date(subscription.trial_start), "dd/MM/yyyy")}</span>
@@ -505,14 +505,14 @@ const ConfiguracoesTab = () => {
                     <span className="text-foreground">{format(new Date(subscription.trial_end), "dd/MM/yyyy")}</span>
                   </div>
                 </div>
-              )}
+            }
               <Button variant="hero" size="sm" className="w-full">Assinar agora — R$ 69/mês</Button>
             </div>
           </div>
-        )}
+        }
       </div>
-    </div>
-  );
+    </div>);
+
 };
 
 export default ConfiguracoesTab;
