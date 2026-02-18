@@ -126,10 +126,19 @@ export default function ClientRegistration() {
     }
   };
 
+  const toTitleCase = (str: string) =>
+    str.replace(/\S+/g, (word) =>
+      word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+    );
+
   const f = (field: keyof ClientData) => ({
     value: form[field],
-    onChange: (e: React.ChangeEvent<HTMLInputElement>) =>
-      setForm((prev) => ({ ...prev, [field]: e.target.value })),
+    onChange: (e: React.ChangeEvent<HTMLInputElement>) => {
+      const value = field === "full_name"
+        ? toTitleCase(e.target.value)
+        : e.target.value;
+      setForm((prev) => ({ ...prev, [field]: value }));
+    },
   });
 
   if (status === "loading") {
