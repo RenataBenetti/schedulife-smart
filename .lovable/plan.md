@@ -1,67 +1,57 @@
 
-# Fix: WhatsApp QR Code Generation — Two Critical Bugs
+# Correção: SetupWizard — Substituir WhatsApp Cloud API pelo QR Code (Evolution API)
 
-## Root Cause Analysis
+## Causa raiz identificada
 
-The edge function `whatsapp-evolution-proxy` has two bugs that completely block the QR code from being generated:
+O dialog mostrado na imagem **não é o painel de Configurações** (ConfiguracoesTab). É a tela do `SetupWizard.tsx`, o assistente de boas-vindas que novos usuários veem ao criar a conta.
 
-### Bug 1 — `auth.getClaims()` does not exist (CRITICAL)
-Line 28 of the proxy function calls:
-```typescript
-const { data: authData, error: authError } = await authSupabase.auth.getClaims(token);
-```
-This method **does not exist** in `@supabase/supabase-js` v2. It will always throw or return an error, causing every request to be rejected with `401 Unauthorized` before any QR logic runs. The function is called, the user is authenticated, but the proxy immediately rejects the call.
+No arquivo `src/pages/SetupWizard.tsx`, o componente `WhatsAppStep` (linhas 118-148) ainda exibe o formulário antigo da Meta Cloud API:
+- Campo: Business ID
+- Campo: Phone Number ID
+- Campo: Access Token
+- Nota: "O custo das mensagens é pago diretamente por você à Meta"
 
-**Fix:** Replace with `authSupabase.auth.getUser()` which is the correct v2 method to validate a JWT token and retrieve user info.
-
-### Bug 2 — Missing CORS headers
-The current `corsHeaders` only includes:
-```
-authorization, x-client-info, apikey, content-type
-```
-The Supabase JS client automatically sends additional headers like `x-supabase-client-platform`, `x-supabase-client-platform-version`, etc. If these are not whitelisted, the browser's OPTIONS preflight request fails before the actual POST even happens.
-
-**Fix:** Expand `corsHeaders` to include all Supabase client headers.
+Esse arquivo nunca foi atualizado durante a implementação anterior. A `ConfiguracoesTab.tsx` e o `WhatsAppEvolutionDialog.tsx` estão corretos — o problema está exclusivamente no `SetupWizard.tsx`.
 
 ---
 
-## Fix Plan
+## O que será alterado
 
-### File: `supabase/functions/whatsapp-evolution-proxy/index.ts`
+### Arquivo: `src/pages/SetupWizard.tsx`
 
-Two targeted changes:
+Substituir o componente `WhatsAppStep` (passo 0 do wizard) completamente:
 
-**Change 1 — Expand CORS headers** (line 5):
-```typescript
-// BEFORE
-"Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+**Antes (Meta Cloud API):**
+- Título: "Conectar WhatsApp Cloud API"
+- Campos: Business ID, Phone Number ID, Access Token
+- Nota sobre custo da Meta
 
-// AFTER
-"Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-```
+**Depois (Evolution API / QR Code):**
+- Título: "Conectar WhatsApp via QR Code"
+- Explicação simples do que é necessário: URL do servidor, API Key, nome da instância
+- Dica amigável sobre usar um número dedicado (sem mencionar risco ou banimento)
+- Botão "Configurar agora" que redireciona o usuário para a aba Integrações no dashboard
+- Alternativa: o usuário pode pular e configurar depois em Configurações → Integrações
 
-**Change 2 — Replace non-existent `getClaims()` with `getUser()`** (lines 27-33):
-```typescript
-// BEFORE
-const token = authHeader.replace("Bearer ", "");
-const { data: authData, error: authError } = await authSupabase.auth.getClaims(token);
-if (authError || !authData?.claims) { ... }
-
-// AFTER
-const { data: { user }, error: authError } = await authSupabase.auth.getUser();
-if (authError || !user) { ... }
-```
+O wizard é apenas informativo/introdutório — a configuração real já acontece no `WhatsAppEvolutionDialog` do dashboard. Portanto, o step do wizard será simplificado para orientar o usuário a ir até Configurações após concluir o setup, em vez de duplicar o formulário inteiro.
 
 ---
 
-## Why These Are the Only Changes Needed
+## Mudança técnica
 
-The rest of the logic (QR endpoint paths, base64 extraction, polling in the UI) is correct. The function was simply never reaching the QR code fetch code because the auth check was crashing on every call. Once these two fixes are applied and the function is redeployed, the QR code generation should work end-to-end.
+Apenas **um arquivo** precisa ser modificado:
 
----
-
-## Files to Modify
-
-| File | Change |
+| Arquivo | Mudança |
 |---|---|
-| `supabase/functions/whatsapp-evolution-proxy/index.ts` | Fix CORS headers + replace `getClaims` with `getUser` |
+| `src/pages/SetupWizard.tsx` | Substituir o componente `WhatsAppStep` pelo novo fluxo QR Code |
+
+---
+
+## Resultado esperado
+
+Ao acessar o SetupWizard (ex: usuário novo), o passo "WhatsApp" mostrará:
+- Nome correto: "Conectar WhatsApp via QR Code"
+- Instruções sobre a Evolution API
+- Dica amigável sobre chip dedicado
+- Orientação para finalizar a conexão em Configurações → Integrações
+- Sem nenhuma referência à Meta, Business ID, Phone Number ID ou Access Token
