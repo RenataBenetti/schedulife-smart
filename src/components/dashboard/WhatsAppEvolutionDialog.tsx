@@ -13,6 +13,7 @@ import { Loader2, CheckCircle2, XCircle, RefreshCw, Smartphone, Info } from "luc
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
+
 interface Props {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -60,6 +61,21 @@ export function WhatsAppEvolutionDialog({ open, onOpenChange, workspaceId, exist
 
   const cleanUrl = (url: string) => url.replace(/\/$/, "");
 
+
+  const callProxy = async (action: string) => {
+    const { data, error } = await supabase.functions.invoke("whatsapp-evolution-proxy", {
+      body: {
+        action,
+        evolution_api_url: cleanUrl(apiUrl),
+        evolution_api_key: apiKey,
+        evolution_instance: instance,
+      },
+    });
+    if (error) throw new Error(error.message);
+    if (data?.error) throw new Error(data.error);
+    return data;
+  };
+
   const handleCheckConnection = async () => {
     if (!apiUrl || !apiKey || !instance) {
       toast({ variant: "destructive", title: "Preencha todos os campos antes de verificar." });
@@ -70,32 +86,23 @@ export function WhatsAppEvolutionDialog({ open, onOpenChange, workspaceId, exist
     setQrCode(null);
 
     try {
-      const url = `${cleanUrl(apiUrl)}/instance/connectionState/${instance}`;
-      const res = await fetch(url, {
-        headers: { apikey: apiKey },
-      });
-
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-
-      // Evolution API retorna state: "open" quando conectado
-      const state = data?.instance?.state ?? data?.state ?? "";
-      const isConnected = state === "open";
+      const data = await callProxy("check_connection");
+      const isConnected = data?.connected === true;
       const newStatus: ConnectionStatus = isConnected ? "connected" : "disconnected";
       setConnectionStatus(newStatus);
-
-      // Salvar status no banco
       await saveConfig(newStatus);
 
       if (isConnected) {
         toast({ title: "WhatsApp conectado com sucesso! ✅" });
+      } else {
+        toast({ title: "Instância desconectada", description: "Gere o QR Code para conectar." });
       }
     } catch (err: any) {
       setConnectionStatus("disconnected");
       toast({
         variant: "destructive",
         title: "Não foi possível conectar",
-        description: "Verifique a URL, API Key e nome da instância.",
+        description: err.message || "Verifique a URL, API Key e nome da instância.",
       });
     } finally {
       setChecking(false);
@@ -111,38 +118,27 @@ export function WhatsAppEvolutionDialog({ open, onOpenChange, workspaceId, exist
     setQrCode(null);
 
     try {
-      // Primeiro salvar configuração
       await saveConfig("connecting");
 
-      // Buscar QR Code da instância
-      const url = `${cleanUrl(apiUrl)}/instance/connect/${instance}`;
-      const res = await fetch(url, { headers: { apikey: apiKey } });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
+      const data = await callProxy("get_qr");
+      const qr = data?.qr;
 
-      const qr = data?.base64 ?? data?.qrcode?.base64 ?? null;
       if (qr) {
-        setQrCode(qr.startsWith("data:") ? qr : `data:image/png;base64,${qr}`);
+        setQrCode(qr);
         setConnectionStatus("connecting");
 
-        // Iniciar polling para verificar quando o QR for escaneado
+        // Polling para detectar quando o QR foi escaneado
         if (qrPolling) clearInterval(qrPolling);
         const interval = setInterval(async () => {
           try {
-            const stateRes = await fetch(`${cleanUrl(apiUrl)}/instance/connectionState/${instance}`, {
-              headers: { apikey: apiKey },
-            });
-            if (stateRes.ok) {
-              const stateData = await stateRes.json();
-              const state = stateData?.instance?.state ?? stateData?.state ?? "";
-              if (state === "open") {
-                clearInterval(interval);
-                setQrPolling(null);
-                setQrCode(null);
-                setConnectionStatus("connected");
-                await saveConfig("connected");
-                toast({ title: "WhatsApp conectado com sucesso! ✅" });
-              }
+            const stateData = await callProxy("check_connection");
+            if (stateData?.connected === true) {
+              clearInterval(interval);
+              setQrPolling(null);
+              setQrCode(null);
+              setConnectionStatus("connected");
+              await saveConfig("connected");
+              toast({ title: "WhatsApp conectado com sucesso! ✅" });
             }
           } catch (_) { /* silencioso */ }
         }, 5000);
@@ -160,6 +156,7 @@ export function WhatsAppEvolutionDialog({ open, onOpenChange, workspaceId, exist
       setLoadingQr(false);
     }
   };
+
 
   const saveConfig = async (status?: ConnectionStatus) => {
     const payload: any = {

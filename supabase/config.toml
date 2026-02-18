@@ -18,3 +18,7 @@ verify_jwt = false
 [functions.process-message-rules]
 verify_jwt = false
 
+[functions.whatsapp-evolution-proxy]
+verify_jwt = false
+
+
