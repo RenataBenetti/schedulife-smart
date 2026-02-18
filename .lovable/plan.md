@@ -1,90 +1,58 @@
 
-## Diagnóstico: Por que os agendamentos não aparecem no Google Calendar
+## Diagnóstico completo — por que os agendamentos não vão ao Google Calendar
 
-### Causa raiz — dois problemas combinados
+### O problema real (encontrado no banco de dados)
 
-**Problema 1: Scopes apenas de leitura**
+O banco de dados revela a causa raiz:
 
-No arquivo `supabase/functions/google-calendar-auth/index.ts`, as permissões solicitadas ao Google são:
-```
-calendar.readonly
-calendar.events.readonly
-```
-Ambas são **somente leitura**. O app nunca pediu permissão para **criar** eventos no Google Calendar.
+| Workspace | Conectado | Access Token | Refresh Token |
+|---|---|---|---|
+| SEU workspace (`0c91acd4`) | Sim | AUSENTE | AUSENTE |
+| Outro workspace (`02a1495c`) | Sim | Presente | Presente |
 
-**Problema 2: Não existe nenhum código que envia eventos para o Google**
+O seu workspace está marcado como `connected: true`, mas **sem nenhum token salvo**. Isso significa que a função `sync-to-google-calendar` encontra o registro, mas o `access_token` é nulo — e qualquer chamada à API do Google falha silenciosamente.
 
-Ao criar um agendamento em `AgendamentosTab.tsx`, o código apenas salva no banco de dados interno (`appointments`). Não existe nenhuma chamada para a API do Google Calendar para criar o evento lá. A integração atual só foi construída para autenticação — nunca houve a parte de "enviar evento".
+Isso aconteceu porque a primeira conexão (com os scopes antigos de leitura) ficou registrada sem tokens válidos, e a reconexão posterior salvou os tokens no registro errado, ou o update não funcionou corretamente.
 
-### Resumo do fluxo atual (incompleto)
+### Por que não aparecia nenhum erro visível
 
-```text
-Usuário cria agendamento
-        ↓
-Salvo no banco interno ✅
-        ↓
-Google Calendar ← NADA ENVIADO ❌
-```
+A chamada à edge function em `AgendamentosTab.tsx` é "fire-and-forget" — ela não bloqueia o fluxo e falhas são apenas logadas no console como warnings. O agendamento é salvo normalmente no banco interno, mas o Google Calendar nunca recebe o evento.
 
-### Solução completa em 3 partes
+### Solução — 3 ações em paralelo
 
----
+**Ação 1: Corrigir o registro corrompido no banco**
 
-**Parte 1 — Atualizar os scopes do OAuth para escrita**
+O registro do seu workspace com `connected: true` mas sem tokens precisa ser limpo/corrigido via SQL para que a reconexão funcione corretamente:
 
-Alterar `supabase/functions/google-calendar-auth/index.ts` para solicitar a permissão de criação de eventos:
-
-```
-Remover:  calendar.readonly, calendar.events.readonly
-Adicionar: calendar.events  (leitura + escrita de eventos)
+```sql
+UPDATE google_calendar_config 
+SET connected = false 
+WHERE workspace_id = '0c91acd4-011a-469b-8368-53f1520864b1' 
+  AND access_token IS NULL;
 ```
 
-O usuário precisará **reconectar o Google Calendar** nas Configurações → Integrações para aceitar a nova permissão de escrita.
+Isso força o app a mostrar "Não conectado" corretamente, em vez de aparecer como conectado quando não está.
 
----
+**Ação 2: Adicionar feedback visual claro na tela de agendamentos**
 
-**Parte 2 — Criar edge function `sync-to-google-calendar`**
+Quando a sincronização com Google Calendar falha, o usuário não vê nada — apenas um warning no console. Vamos adicionar um toast informativo claro que diga: "Google Calendar não conectado. Reconecte em Configurações → Integrações."
 
-Nova função `supabase/functions/sync-to-google-calendar/index.ts` que:
-1. Recebe `workspace_id`, `client_name`, `starts_at`, `ends_at`
-2. Busca os tokens do Google Calendar no banco
-3. Se o token estiver expirado, usa o `refresh_token` para renová-lo automaticamente e salva o novo token
-4. Cria o evento no Google Calendar via API (`POST /calendars/primary/events`)
-5. Retorna o `google_event_id` criado
+**Ação 3: Tornar o botão de Google Calendar na aba Configurações mais inteligente**
 
----
+O botão deve verificar se o token está realmente presente (não só `connected: true`) e mostrar o status real: "Reconectar" se o token estiver ausente mesmo com `connected: true`.
 
-**Parte 3 — Chamar a função ao criar agendamentos**
+### Arquivos a modificar
 
-Em `AgendamentosTab.tsx`, após salvar os agendamentos no banco, chamar a edge function para cada agendamento criado. Se a sincronização falhar (ex: usuário sem Google Calendar conectado), o agendamento continua salvo normalmente e apenas uma mensagem informativa aparece.
-
----
-
-### Fluxo após a solução
-
-```text
-Usuário cria agendamento
-        ↓
-Salvo no banco interno ✅
-        ↓
-sync-to-google-calendar chamada
-        ↓
-Token expirado? → Renova automaticamente
-        ↓
-Evento criado no Google Calendar ✅
-```
-
----
-
-### Arquivos a modificar/criar
-
-| Arquivo | Ação |
+| Arquivo | O que muda |
 |---|---|
-| `supabase/functions/google-calendar-auth/index.ts` | Atualizar scopes para `calendar.events` |
-| `supabase/functions/sync-to-google-calendar/index.ts` | Criar nova edge function |
-| `src/components/dashboard/AgendamentosTab.tsx` | Chamar sync após criar agendamento |
-| `supabase/config.toml` | Registrar nova função (verify_jwt = false não necessário, pois usará autenticação) |
+| Banco de dados (SQL) | Corrigir o registro corrompido do seu workspace |
+| `src/components/dashboard/AgendamentosTab.tsx` | Exibir toast claro quando Google Calendar não está conectado |
+| `src/components/dashboard/ConfiguracoesTab.tsx` | Mostrar status real baseado na presença do token, não só no campo `connected` |
 
-### Importante: reconexão necessária
+### Após aplicar as mudanças
 
-Após publicar as mudanças, a usuária precisará ir em **Configurações → Integrações → Google Calendar → Reconectar** para aceitar a nova permissão de escrita. Isso é obrigatório pelo Google — permissões novas sempre exigem nova autorização.
+Você precisará clicar em "Reconectar" na aba **Configurações → Integrações → Google Calendar** uma última vez para salvar os tokens corretamente. Depois disso, todos os novos agendamentos serão enviados automaticamente ao Google Calendar sem nenhuma ação adicional sua.
+
+### Por que isso não foi feito antes
+
+O plano anterior corrigiu o código (scopes e edge function) corretamente, mas não verificou o estado atual dos dados no banco antes de pedir a reconexão. A auditoria do banco deveria ter sido o primeiro passo — e vou garantir que isso aconteça em todo trabalho futuro neste projeto.
