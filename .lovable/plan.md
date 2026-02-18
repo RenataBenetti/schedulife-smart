@@ -1,47 +1,50 @@
 
-## Reformulação da Tela de Anotações do Cliente
-
-### Problema atual
-O formulário para adicionar uma nova observação está escondido dentro de um dialog (modal). O usuário precisa clicar em "Nova observação" para abrir o modal, digitar, salvar e fechar. Isso cria fricção e não permite ver a lista ao mesmo tempo.
+## Formatação automática de nome em Title Case
 
 ### O que será feito
 
-**1. Remover o dialog de nova observação**
+No formulário público de cadastro (`src/pages/ClientRegistration.tsx`), ao digitar no campo **Nome Completo**, o texto será convertido automaticamente para Title Case — independentemente de como o usuário digitar (tudo maiúsculo, tudo minúsculo, etc.).
 
-O textarea e o botão "Adicionar observação" serão movidos para fora do modal e exibidos diretamente na tela, acima da lista de registros — sempre visíveis.
+**Exemplo:**
+- Digitado: `JOÃO DA SILVA` → Exibido: `João Da Silva`
+- Digitado: `joão da silva` → Exibido: `João Da Silva`
 
-**2. Comportamento após salvar**
+### Implementação técnica
 
-Ao clicar em "Adicionar observação":
-- O texto do campo é limpo automaticamente (`setSessionNotes("")`)
-- O filtro de data é limpo (`setDateFilter("")`), fazendo a lista mostrar **todos** os registros
-- A nova observação aparece no topo da lista imediatamente (já é o comportamento atual via TanStack Query)
+A mudança é mínima e cirúrgica. A função auxiliar `f()` (linha 129) será ajustada para aplicar a transformação **somente no campo `full_name`**:
 
-**3. Edição de observação existente**
+```typescript
+// Antes:
+const f = (field: keyof ClientData) => ({
+  value: form[field],
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) =>
+    setForm((prev) => ({ ...prev, [field]: e.target.value })),
+});
 
-Ao clicar no lápis (editar) em uma observação existente, o texto carrega no textarea inline (em vez do modal). O botão muda para "Salvar alterações" e aparece um botão "Cancelar" ao lado. Após salvar, o campo volta ao estado de "nova observação" e o filtro é limpo.
+// Depois:
+const toTitleCase = (str: string) =>
+  str.replace(/\S+/g, (word) =>
+    word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+  );
 
-**4. Layout da tela reorganizado**
-
-```text
-[ Filtro de data ]  [ Limpar ]          ← barra de filtro (Limpar só aparece se data selecionada)
-
-[ Textarea: "Registre suas observações..." ]
-[ Adicionar observação ]                ← botão abaixo do textarea
-
-────────────────────────────────────────
-  Lista de observações existentes
-  (mostra todas, ou filtradas por data)
-────────────────────────────────────────
+const f = (field: keyof ClientData) => ({
+  value: form[field],
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = field === "full_name"
+      ? toTitleCase(e.target.value)
+      : e.target.value;
+    setForm((prev) => ({ ...prev, [field]: value }));
+  },
+});
 ```
+
+### Por que esta abordagem?
+
+- A função `toTitleCase` usa `replace` com regex `\S+` (sequências de caracteres não-espaço), capturando cada palavra e tornando a primeira letra maiúscula e o restante minúsculo.
+- A lógica fica isolada em uma função pura e reutilizável.
+- Não afeta nenhum outro campo do formulário.
+- Funciona em tempo real, a cada tecla pressionada.
 
 ### Arquivo a modificar
 
-**`src/components/dashboard/ClientesTab.tsx`** — componente `ClientDetail` (linhas 679-846):
-
-- Remover o `<Dialog>` de adicionar/editar observação
-- Mover o `<Textarea>` e o botão para inline na tela (após a barra de filtro)
-- Atualizar `handleAddNote` para também limpar `dateFilter` após salvar
-- Atualizar `handleUpdateNote` para limpar o campo e `dateFilter` após salvar
-- Ao clicar em editar (lápis), preencher o textarea inline e mostrar botão "Cancelar edição"
-- Manter o dialog apenas se o usuário quiser, caso contrário removê-lo completamente
+**`src/pages/ClientRegistration.tsx`** — apenas as linhas 129-133 (função `f`).
