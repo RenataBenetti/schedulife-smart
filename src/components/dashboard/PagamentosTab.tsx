@@ -32,6 +32,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { usePaymentLinks, useClients, useAddPaymentLink, useUpdatePaymentLink, useDeletePaymentLink } from "@/hooks/use-data";
+import { ReportButton } from "@/components/dashboard/ReportModal";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -238,13 +239,15 @@ const PagamentosTab = () => {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input placeholder="Buscar pagamento..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
         </div>
-        <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
-          <DialogTrigger asChild>
-            <Button variant="hero" size="sm">
-              <Plus className="h-4 w-4" />
-              Criar cobrança
-            </Button>
-          </DialogTrigger>
+        <div className="flex items-center gap-2">
+          <ReportButton type="payments" data={payments ?? []} />
+          <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
+            <DialogTrigger asChild>
+              <Button variant="hero" size="sm">
+                <Plus className="h-4 w-4" />
+                Criar cobrança
+              </Button>
+            </DialogTrigger>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Nova cobrança</DialogTitle>
@@ -316,8 +319,9 @@ const PagamentosTab = () => {
                 {addPayment.isPending ? "Criando..." : "Criar cobrança"}
               </Button>
             </DialogFooter>
-          </DialogContent>
-        </Dialog>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       {/* Payment list */}

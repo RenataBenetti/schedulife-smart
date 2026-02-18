@@ -27,6 +27,7 @@ import {
   Link,
   CheckCircle,
 } from "lucide-react";
+import { ReportButton } from "@/components/dashboard/ReportModal";
 import { useClients, useAddClient, useUpdateClient, useDeleteClient, useSessions, useAddSession, useUpdateSession, useMessageTemplates, useCreateRegistrationToken } from "@/hooks/use-data";
 import { supabase } from "@/integrations/supabase/client";
 import { useWorkspace } from "@/hooks/use-workspace";
@@ -323,18 +324,20 @@ const ClientesTab = () => {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input placeholder="Buscar paciente..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
         </div>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button variant="hero" size="sm">
-              <Plus className="h-4 w-4" />
-              Novo paciente
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Novo Paciente</DialogTitle>
-              <p className="text-sm text-muted-foreground">Cadastre um novo paciente no sistema. Preencha as informações básicas e configure o modelo de cobrança.</p>
-            </DialogHeader>
+        <div className="flex items-center gap-2">
+          <ReportButton type="clients" data={clients ?? []} />
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+              <Button variant="hero" size="sm">
+                <Plus className="h-4 w-4" />
+                Novo paciente
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Novo Paciente</DialogTitle>
+                <p className="text-sm text-muted-foreground">Cadastre um novo paciente no sistema. Preencha as informações básicas e configure o modelo de cobrança.</p>
+              </DialogHeader>
             <div className="space-y-4 pt-2">
               <div className="space-y-2">
                 <Label>Nome Completo *</Label>
@@ -430,7 +433,8 @@ const ClientesTab = () => {
               </Button>
             </div>
           </DialogContent>
-        </Dialog>
+          </Dialog>
+        </div>
       </div>
 
       <div className="rounded-xl border border-border bg-card shadow-soft overflow-hidden">
