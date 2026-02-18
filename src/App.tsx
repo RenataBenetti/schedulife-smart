@@ -14,6 +14,8 @@ import SetupWizard from "./pages/SetupWizard";
 import NotFound from "./pages/NotFound";
 import GoogleCalendarCallback from "./pages/GoogleCalendarCallback";
 import ClientRegistration from "./pages/ClientRegistration";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
+import TermsOfService from "./pages/TermsOfService";
 
 const queryClient = new QueryClient();
 
@@ -29,6 +31,8 @@ const App = () => (
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
             <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/privacidade" element={<PrivacyPolicy />} />
+            <Route path="/termos" element={<TermsOfService />} />
             <Route path="/cadastro/:token" element={<ClientRegistration />} />
             <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
             <Route path="/setup" element={<ProtectedRoute><SetupWizard /></ProtectedRoute>} />
