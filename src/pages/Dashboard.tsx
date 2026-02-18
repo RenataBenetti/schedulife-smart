@@ -61,6 +61,16 @@ function hexToHsl(hex: string): string {
   return `${Math.round(h * 360)} ${Math.round(s * 100)}% ${Math.round(l * 100)}%`;
 }
 
+// Mobile bottom nav tabs (without "Dashboard" – shown as Home icon)
+const mobileTabs = [
+  { icon: Calendar, label: "Início", id: "dashboard" },
+  { icon: Users, label: "Clientes", id: "clientes" },
+  { icon: Clock, label: "Agenda", id: "agendamentos" },
+  { icon: MessageSquare, label: "Mensagens", id: "mensagens" },
+  { icon: CreditCard, label: "Pagamentos", id: "pagamentos" },
+  { icon: Settings, label: "Config.", id: "configuracoes" },
+];
+
 const Dashboard = () => {
   const { signOut, user } = useAuth();
   const navigate = useNavigate();
@@ -90,19 +100,20 @@ const Dashboard = () => {
 
   return (
     <div className="min-h-screen bg-background flex">
-      <aside className="hidden md:flex w-64 flex-col border-r border-border bg-card">
-         <div className="p-4 border-b border-border">
-           <Link to="/" className="flex items-center gap-2">
-             {workspace?.logo_url ? (
-               <img src={workspace.logo_url} alt="Logo" className="h-8 w-8 rounded-lg object-contain" />
-             ) : (
-               <div className="h-8 w-8 rounded-lg gradient-primary flex items-center justify-center">
-                 <Calendar className="h-4 w-4 text-primary-foreground" />
-               </div>
-             )}
-             <span className="font-bold text-foreground">{workspace?.name || "Agendix"}</span>
-           </Link>
-         </div>
+      {/* Desktop sidebar */}
+      <aside className="hidden md:flex w-64 flex-col border-r border-border bg-card shrink-0">
+        <div className="p-4 border-b border-border">
+          <Link to="/" className="flex items-center gap-2">
+            {workspace?.logo_url ? (
+              <img src={workspace.logo_url} alt="Logo" className="h-8 w-8 rounded-lg object-contain" />
+            ) : (
+              <div className="h-8 w-8 rounded-lg gradient-primary flex items-center justify-center">
+                <Calendar className="h-4 w-4 text-primary-foreground" />
+              </div>
+            )}
+            <span className="font-bold text-foreground">{workspace?.name || "Agendix"}</span>
+          </Link>
+        </div>
         <nav className="flex-1 p-3 space-y-1">
           {tabs.map((item) => (
             <button
@@ -130,23 +141,46 @@ const Dashboard = () => {
         </div>
       </aside>
 
-      <main className="flex-1 overflow-auto">
-        <div className="border-b border-border bg-card px-6 py-4 flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-bold text-foreground">{currentTab.label}</h1>
-            <p className="text-sm text-muted-foreground">{currentTab.subtitle}</p>
-          </div>
+      {/* Main content */}
+      <main className="flex-1 overflow-auto flex flex-col min-h-screen">
+        {/* Top header */}
+        <div className="border-b border-border bg-card px-4 md:px-6 py-3 md:py-4 flex items-center justify-between sticky top-0 z-10">
+          {/* Mobile: show logo on left */}
           <div className="flex items-center gap-3">
-            <button className="h-9 w-9 rounded-lg border border-border flex items-center justify-center text-muted-foreground hover:bg-muted">
+            <div className="md:hidden">
+              {workspace?.logo_url ? (
+                <img src={workspace.logo_url} alt="Logo" className="h-7 w-7 rounded-lg object-contain" />
+              ) : (
+                <div className="h-7 w-7 rounded-lg gradient-primary flex items-center justify-center">
+                  <Calendar className="h-3.5 w-3.5 text-primary-foreground" />
+                </div>
+              )}
+            </div>
+            <div>
+              <h1 className="text-base md:text-xl font-bold text-foreground leading-tight">{currentTab.label}</h1>
+              <p className="text-xs md:text-sm text-muted-foreground hidden sm:block">{currentTab.subtitle}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 md:gap-3">
+            <button className="h-8 w-8 md:h-9 md:w-9 rounded-lg border border-border flex items-center justify-center text-muted-foreground hover:bg-muted">
               <Bell className="h-4 w-4" />
             </button>
-            <div className="h-9 w-9 rounded-full gradient-primary flex items-center justify-center text-primary-foreground text-sm font-bold">
+            <div className="h-8 w-8 md:h-9 md:w-9 rounded-full gradient-primary flex items-center justify-center text-primary-foreground text-sm font-bold">
               {userInitial}
             </div>
+            {/* Mobile sign out button */}
+            <button
+              onClick={handleSignOut}
+              className="md:hidden h-8 w-8 rounded-lg border border-border flex items-center justify-center text-muted-foreground hover:bg-muted"
+              title="Sair"
+            >
+              <LogOut className="h-4 w-4" />
+            </button>
           </div>
         </div>
 
-        <div className="p-6">
+        {/* Tab content - with bottom padding on mobile for bottom nav */}
+        <div className="flex-1 p-3 md:p-6 pb-24 md:pb-6">
           {activeTab === "dashboard" && <DashboardContent />}
           {activeTab === "clientes" && <ClientesTab />}
           {activeTab === "agendamentos" && <AgendamentosTab />}
@@ -155,6 +189,26 @@ const Dashboard = () => {
           {activeTab === "configuracoes" && <ConfiguracoesTab />}
         </div>
       </main>
+
+      {/* Mobile bottom navigation bar */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-card border-t border-border">
+        <div className="flex items-stretch">
+          {mobileTabs.map((item) => (
+            <button
+              key={item.id}
+              onClick={() => setActiveTab(item.id)}
+              className={`flex-1 flex flex-col items-center justify-center py-2 gap-0.5 text-[10px] font-medium transition-colors min-h-[56px] ${
+                activeTab === item.id
+                  ? "text-primary"
+                  : "text-muted-foreground"
+              }`}
+            >
+              <item.icon className={`h-5 w-5 ${activeTab === item.id ? "text-primary" : "text-muted-foreground"}`} />
+              {item.label}
+            </button>
+          ))}
+        </div>
+      </nav>
     </div>
   );
 };
@@ -174,8 +228,8 @@ const DashboardContent = () => {
   const formatCents = (cents: number) => `R$ ${(cents / 100).toLocaleString("pt-BR", { minimumFractionDigits: 0 })}`;
 
   return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="space-y-4 md:space-y-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
         {[
           { label: "Sessões hoje", value: String(todayAppointments.length), icon: Clock, change: `${clients?.length ?? 0} clientes` },
           { label: "Pendentes", value: String(pendingCount), icon: Bell, change: "aguardando confirmação" },
