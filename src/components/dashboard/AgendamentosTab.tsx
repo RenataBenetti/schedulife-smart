@@ -156,11 +156,20 @@ const AgendamentosTab = () => {
           })
         );
         const syncResults = await Promise.allSettled(syncPromises);
-        const syncFailed = syncResults.some(
+        const failedResult = syncResults.find(
           (r) => r.status === "rejected" || (r.status === "fulfilled" && r.value.error)
         );
-        if (syncFailed) {
-          console.warn("Alguns agendamentos não foram sincronizados com Google Calendar");
+        if (failedResult) {
+          const errMsg = failedResult.status === "fulfilled" ? failedResult.value.error?.message || "" : "";
+          const isNotConnected = errMsg.includes("not connected") || errMsg.includes("404");
+          console.warn("Alguns agendamentos não foram sincronizados com Google Calendar", errMsg);
+          toast({
+            variant: "destructive",
+            title: "Google Calendar não sincronizado",
+            description: isNotConnected
+              ? "Google Calendar não está conectado. Reconecte em Configurações → Integrações."
+              : "Não foi possível sincronizar com o Google Calendar. Verifique a conexão nas Configurações.",
+          });
         }
       }
 
