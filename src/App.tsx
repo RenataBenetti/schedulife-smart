@@ -16,6 +16,7 @@ import GoogleCalendarCallback from "./pages/GoogleCalendarCallback";
 import ClientRegistration from "./pages/ClientRegistration";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsOfService from "./pages/TermsOfService";
+import PaymentPending from "./pages/PaymentPending";
 
 const queryClient = new QueryClient();
 
@@ -37,6 +38,7 @@ const App = () => (
             <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
             <Route path="/setup" element={<ProtectedRoute><SetupWizard /></ProtectedRoute>} />
             <Route path="/auth/google-calendar/callback" element={<ProtectedRoute><GoogleCalendarCallback /></ProtectedRoute>} />
+            <Route path="/pagamento-pendente" element={<PaymentPending />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
