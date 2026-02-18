@@ -1,36 +1,58 @@
 
-## Replace Hero Section Dashboard Mock with Real Dashboard UI
+## Criar Páginas de Política de Privacidade e Termos de Serviço
 
-The user wants to replace the placeholder/mock dashboard preview in the landing page Hero Section with a realistic representation that matches the actual dashboard UI (as shown in the uploaded screenshot).
+### O que o Google está pedindo
 
-### What Needs to Change
+Conforme a imagem enviada, o Google exige dois links públicos:
+1. **Link da Política de Privacidade** — explicando quais dados o app coleta e como usa
+2. **Link dos Termos de Serviço** — regras de uso da plataforma
 
-The current mock in `src/components/landing/HeroSection.tsx` (lines 84–127) is a generic placeholder with colored dots and skeleton cards. It will be replaced with a faithful HTML/CSS recreation of the real dashboard, including:
+### Links que você vai receber ao final
 
-- A sidebar with navigation items (Dashboard, Clientes, Agendamentos, etc.)
-- A header with "Dashboard" title and user avatar
-- 4 stat cards: "Sessões hoje", "Pendentes", "Pagamentos pendentes", "Templates"
-- A "Sessões de hoje" table with 2 appointment rows (ZE at 12:00 and Susane at 15:00), both with "Agendado" badges
+Após a implementação e publicação, você colará estes dois links no Google Cloud Console:
 
-### Technical Approach
+- Política de Privacidade: `https://schedulife-smart.lovable.app/privacidade`
+- Termos de Serviço: `https://schedulife-smart.lovable.app/termos`
 
-No image upload is needed. The dashboard will be built entirely with HTML/Tailwind CSS inside the existing motion container, matching the real dashboard's visual appearance closely. This gives a crisp, scalable, and always-up-to-date preview.
+### O que será criado
 
-### Files to Edit
+**1. Página de Política de Privacidade** — `src/pages/PrivacyPolicy.tsx`
 
-- **`src/components/landing/HeroSection.tsx`**: Replace the `{/* Dashboard preview mock */}` section (lines 84–127) with a detailed, realistic dashboard UI component using Tailwind classes and lucide icons, mirroring the actual dashboard layout.
+Página pública com conteúdo completo e real exigido pelo Google, incluindo:
+- Dados coletados: nome, e-mail, dados do Google Calendar (eventos, horários)
+- Finalidade: agendamentos, notificações via WhatsApp
+- Compartilhamento com Google e Meta/WhatsApp
+- Que o app **não vende dados a terceiros**
+- Como revogar o acesso ao Google Calendar
+- Direitos do usuário (acesso, correção, exclusão)
+- Dados de contato do responsável
+- Data de vigência
 
-### Implementation Details
+**2. Página de Termos de Serviço** — `src/pages/TermsOfService.tsx`
 
-The new preview will include:
+Página pública com os termos de uso da plataforma Agendix, incluindo:
+- Descrição do serviço (gestão de agendamentos para profissionais)
+- Responsabilidades do usuário
+- Política de assinatura e cancelamento
+- Limitação de responsabilidade
 
-**Sidebar (left column):**
-- Logo area "Agendix" with calendar icon
-- Nav items: Dashboard (active/highlighted), Clientes, Agendamentos, Mensagens, Pagamentos, Configurações
+**3. Atualizar rotas** — `src/App.tsx`
 
-**Main content (right column):**
-- Top header bar: "Dashboard / Visão geral do seu dia" + bell icon + user avatar
-- 4 stat cards in a grid row
-- "Sessões de hoje" card with 2 appointment rows
+Adicionar duas rotas públicas (sem necessidade de login):
+```
+/privacidade → <PrivacyPolicy />
+/termos      → <TermsOfService />
+```
 
-All content will be static/hardcoded demo data matching what the user shared in the screenshot. The whole thing will be wrapped in a `pointer-events-none select-none` container so it's purely decorative and won't interfere with the page.
+**4. Atualizar rodapé** — `src/components/landing/FooterSection.tsx`
+
+Trocar os links `href="#"` por links reais apontando para as novas páginas, usando o componente `<Link>` do React Router.
+
+### Passos após a implementação
+
+1. Clique em **Publish → Update** no Lovable para publicar as páginas
+2. Acesse o Google Cloud Console → OAuth Consent Screen
+3. Cole os dois links nos campos correspondentes:
+   - Política de Privacidade: `https://schedulife-smart.lovable.app/privacidade`
+   - Termos de Serviço: `https://schedulife-smart.lovable.app/termos`
+4. Salve e solicite a verificação do app para remover o aviso de "acesso bloqueado"
