@@ -21,12 +21,11 @@
   <body>
     <!-- Links estáticos para verificação do Google OAuth Consent Screen.
          Ficam fixados atrás do app React (z-index:0) então não atrapalham a UI. -->
-    <div id="static-footer" style="position:fixed;bottom:0;left:0;right:0;text-align:center;padding:10px;font-size:12px;color:#999;font-family:sans-serif;background:#f9fafb;z-index:0;">
-      <a href="/privacidade.html" style="color:#6366f1;margin:0 8px;">Política de Privacidade</a> ·
-      <a href="/termos.html" style="color:#6366f1;margin:0 8px;">Termos de Serviço</a>
+    <div id="static-footer" style="position:absolute;top:0;left:-9999px;width:1px;height:1px;overflow:hidden;pointer-events:none;" aria-hidden="true">
+      <a href="/privacidade.html">Política de Privacidade</a>
+      <a href="/termos.html">Termos de Serviço</a>
     </div>
-    <!-- React mounts here, covers the static footer above -->
-    <div id="root" style="position:relative;z-index:1;min-height:100vh;"></div>
+    <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
