@@ -1,56 +1,90 @@
 
-## Problema identificado: `static-footer` bloqueando os ícones da bottom nav
+## Diagnóstico: Por que os agendamentos não aparecem no Google Calendar
 
-### Causa raiz
+### Causa raiz — dois problemas combinados
 
-O `index.html` tem este código (adicionado na tentativa de resolver o Google OAuth):
+**Problema 1: Scopes apenas de leitura**
 
-```html
-<div id="static-footer" style="position:fixed;bottom:0;left:0;right:0;...;z-index:0;">
-  ...links...
-</div>
-<div id="root" style="position:relative;z-index:1;min-height:100vh;"></div>
+No arquivo `supabase/functions/google-calendar-auth/index.ts`, as permissões solicitadas ao Google são:
+```
+calendar.readonly
+calendar.events.readonly
+```
+Ambas são **somente leitura**. O app nunca pediu permissão para **criar** eventos no Google Calendar.
+
+**Problema 2: Não existe nenhum código que envia eventos para o Google**
+
+Ao criar um agendamento em `AgendamentosTab.tsx`, o código apenas salva no banco de dados interno (`appointments`). Não existe nenhuma chamada para a API do Google Calendar para criar o evento lá. A integração atual só foi construída para autenticação — nunca houve a parte de "enviar evento".
+
+### Resumo do fluxo atual (incompleto)
+
+```text
+Usuário cria agendamento
+        ↓
+Salvo no banco interno ✅
+        ↓
+Google Calendar ← NADA ENVIADO ❌
 ```
 
-O problema é duplo:
+### Solução completa em 3 partes
 
-1. O `#root` com `position:relative` + `z-index:1` cria um **novo stacking context** isolado. Elementos `position:fixed` dentro do React (como a bottom nav com `z-index:50`) passam a competir apenas dentro desse stacking context, mas o `static-footer` (que está **fora** do `#root`, no mesmo nível do `<body>`) com `z-index:0` pode visualmente sobrepor partes da tela.
+---
 
-2. A bottom nav mobile no `Dashboard.tsx` usa `z-index:50`, mas como o `#root` já cria um stacking context com `z-index:1`, o footer externo com `z-index:0` aparece atrás — porém o background branco (`background:#f9fafb`) do `static-footer` **preenche** a área da bottom nav, tornando os ícones invisíveis ou bloqueados ao toque.
+**Parte 1 — Atualizar os scopes do OAuth para escrita**
 
-### Solução
+Alterar `supabase/functions/google-calendar-auth/index.ts` para solicitar a permissão de criação de eventos:
 
-Remover completamente o `style` do `#root` (não precisa de `position:relative;z-index:1`) e mudar o `static-footer` para uma abordagem que **não interfere** visualmente nem com toques:
-
-- `pointer-events:none` para que o footer HTML não capture cliques
-- `opacity:0` para ficar totalmente invisível (mas ainda presente no HTML para o crawler do Google)
-- Remover o `background` que estava cobrindo a bottom nav
-
-Isso mantém os links no HTML bruto para o Google e **nunca** interfere com os ícones ou qualquer elemento da UI React.
-
-### Arquivo a modificar
-
-**`index.html`** — apenas as linhas do `static-footer` e do `#root`:
-
-```html
-<!-- ANTES (problemático) -->
-<div id="static-footer" style="position:fixed;bottom:0;left:0;right:0;text-align:center;padding:10px;font-size:12px;color:#999;font-family:sans-serif;background:#f9fafb;z-index:0;">
-  ...
-</div>
-<div id="root" style="position:relative;z-index:1;min-height:100vh;"></div>
-
-<!-- DEPOIS (correto) -->
-<div id="static-footer" style="position:absolute;top:0;left:-9999px;width:1px;height:1px;overflow:hidden;pointer-events:none;" aria-hidden="true">
-  <a href="/privacidade.html">Política de Privacidade</a>
-  <a href="/termos.html">Termos de Serviço</a>
-</div>
-<div id="root"></div>
+```
+Remover:  calendar.readonly, calendar.events.readonly
+Adicionar: calendar.events  (leitura + escrita de eventos)
 ```
 
-**Por que `position:absolute;top:0;left:-9999px` funciona para o Google?**
-O Google rastreia links no HTML independentemente da posição. O que ele rejeita é `display:none` e `visibility:hidden` — posicionamento fora da tela é aceito pelos crawlers. O Google OAuth Consent Screen verifica a existência do link href na página, não sua posição visual.
+O usuário precisará **reconectar o Google Calendar** nas Configurações → Integrações para aceitar a nova permissão de escrita.
 
-**Por que isso resolve os ícones?**
-- O `#root` volta a ser um elemento normal sem stacking context próprio
-- A bottom nav com `z-index:50` funciona normalmente
-- O `static-footer` não tem background, não captura cliques (`pointer-events:none`) e está fora da área visível
+---
+
+**Parte 2 — Criar edge function `sync-to-google-calendar`**
+
+Nova função `supabase/functions/sync-to-google-calendar/index.ts` que:
+1. Recebe `workspace_id`, `client_name`, `starts_at`, `ends_at`
+2. Busca os tokens do Google Calendar no banco
+3. Se o token estiver expirado, usa o `refresh_token` para renová-lo automaticamente e salva o novo token
+4. Cria o evento no Google Calendar via API (`POST /calendars/primary/events`)
+5. Retorna o `google_event_id` criado
+
+---
+
+**Parte 3 — Chamar a função ao criar agendamentos**
+
+Em `AgendamentosTab.tsx`, após salvar os agendamentos no banco, chamar a edge function para cada agendamento criado. Se a sincronização falhar (ex: usuário sem Google Calendar conectado), o agendamento continua salvo normalmente e apenas uma mensagem informativa aparece.
+
+---
+
+### Fluxo após a solução
+
+```text
+Usuário cria agendamento
+        ↓
+Salvo no banco interno ✅
+        ↓
+sync-to-google-calendar chamada
+        ↓
+Token expirado? → Renova automaticamente
+        ↓
+Evento criado no Google Calendar ✅
+```
+
+---
+
+### Arquivos a modificar/criar
+
+| Arquivo | Ação |
+|---|---|
+| `supabase/functions/google-calendar-auth/index.ts` | Atualizar scopes para `calendar.events` |
+| `supabase/functions/sync-to-google-calendar/index.ts` | Criar nova edge function |
+| `src/components/dashboard/AgendamentosTab.tsx` | Chamar sync após criar agendamento |
+| `supabase/config.toml` | Registrar nova função (verify_jwt = false não necessário, pois usará autenticação) |
+
+### Importante: reconexão necessária
+
+Após publicar as mudanças, a usuária precisará ir em **Configurações → Integrações → Google Calendar → Reconectar** para aceitar a nova permissão de escrita. Isso é obrigatório pelo Google — permissões novas sempre exigem nova autorização.
