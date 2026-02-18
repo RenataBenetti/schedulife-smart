@@ -51,6 +51,9 @@ const ConfiguracoesTab = () => {
   const [waToken, setWaToken] = useState("");
   const [savingWa, setSavingWa] = useState(false);
   const [savingGcal, setSavingGcal] = useState(false);
+  const [notifEmail, setNotifEmail] = useState(false);
+  const [notifPayment, setNotifPayment] = useState(false);
+  const [notifSummary, setNotifSummary] = useState(false);
   const { user } = useAuth();
   const { data: workspace, isLoading: wsLoading } = useWorkspace();
   const { data: profile } = useProfile(user?.id);
@@ -344,19 +347,27 @@ const ConfiguracoesTab = () => {
               <p className="text-sm text-muted-foreground">Configure seus alertas.</p>
             </div>
             <div className="rounded-xl border border-border bg-card p-6 shadow-soft space-y-5">
-              {[
-                { label: "Email ao receber confirmação", desc: "Receba um email quando o cliente confirmar a sessão." },
-                { label: "Alerta de pagamento pendente", desc: "Notificação quando um pagamento estiver pendente por mais de 3 dias." },
-                { label: "Resumo diário", desc: "Receba um resumo das sessões do dia pela manhã." },
-              ].map((item) => (
-                <div key={item.label} className="flex items-center justify-between gap-4">
-                  <div>
-                    <p className="text-sm font-medium text-foreground">{item.label}</p>
-                    <p className="text-xs text-muted-foreground">{item.desc}</p>
-                  </div>
-                  <Switch />
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-sm font-medium text-foreground">Email ao receber confirmação</p>
+                  <p className="text-xs text-muted-foreground">Receba um email quando o cliente confirmar a sessão.</p>
                 </div>
-              ))}
+                <Switch checked={notifEmail} onCheckedChange={setNotifEmail} />
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-sm font-medium text-foreground">Alerta de pagamento pendente</p>
+                  <p className="text-xs text-muted-foreground">Notificação quando um pagamento estiver pendente por mais de 3 dias.</p>
+                </div>
+                <Switch checked={notifPayment} onCheckedChange={setNotifPayment} />
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-sm font-medium text-foreground">Resumo diário</p>
+                  <p className="text-xs text-muted-foreground">Receba um resumo das sessões do dia pela manhã.</p>
+                </div>
+                <Switch checked={notifSummary} onCheckedChange={setNotifSummary} />
+              </div>
             </div>
           </div>
         )}
