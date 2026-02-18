@@ -283,6 +283,84 @@ export type Database = {
           },
         ]
       }
+      message_logs: {
+        Row: {
+          appointment_id: string | null
+          body: string
+          client_id: string | null
+          error_message: string | null
+          id: string
+          phone: string
+          rule_id: string | null
+          sent_at: string | null
+          status: string
+          template_id: string | null
+          workspace_id: string
+        }
+        Insert: {
+          appointment_id?: string | null
+          body: string
+          client_id?: string | null
+          error_message?: string | null
+          id?: string
+          phone: string
+          rule_id?: string | null
+          sent_at?: string | null
+          status?: string
+          template_id?: string | null
+          workspace_id: string
+        }
+        Update: {
+          appointment_id?: string | null
+          body?: string
+          client_id?: string | null
+          error_message?: string | null
+          id?: string
+          phone?: string
+          rule_id?: string | null
+          sent_at?: string | null
+          status?: string
+          template_id?: string | null
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "message_logs_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "message_logs_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "message_logs_rule_id_fkey"
+            columns: ["rule_id"]
+            isOneToOne: false
+            referencedRelation: "message_rules"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "message_logs_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "message_templates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "message_logs_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       message_rules: {
         Row: {
           active: boolean
@@ -601,8 +679,13 @@ export type Database = {
         Row: {
           access_token: string | null
           business_id: string | null
+          connection_status: string | null
           created_at: string
+          evolution_api_key: string | null
+          evolution_api_url: string | null
+          evolution_instance: string | null
           id: string
+          integration_type: string | null
           phone_number_id: string | null
           updated_at: string
           verified: boolean
@@ -611,8 +694,13 @@ export type Database = {
         Insert: {
           access_token?: string | null
           business_id?: string | null
+          connection_status?: string | null
           created_at?: string
+          evolution_api_key?: string | null
+          evolution_api_url?: string | null
+          evolution_instance?: string | null
           id?: string
+          integration_type?: string | null
           phone_number_id?: string | null
           updated_at?: string
           verified?: boolean
@@ -621,8 +709,13 @@ export type Database = {
         Update: {
           access_token?: string | null
           business_id?: string | null
+          connection_status?: string | null
           created_at?: string
+          evolution_api_key?: string | null
+          evolution_api_url?: string | null
+          evolution_instance?: string | null
           id?: string
+          integration_type?: string | null
           phone_number_id?: string | null
           updated_at?: string
           verified?: boolean

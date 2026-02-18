@@ -329,3 +329,21 @@ export const useGoogleCalendarConfig = (workspaceId: string | undefined) => {
     enabled: !!workspaceId,
   });
 };
+
+export const useMessageLogs = (workspaceId: string | undefined) => {
+  return useQuery({
+    queryKey: ["message_logs", workspaceId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("message_logs" as any)
+        .select("*")
+        .eq("workspace_id", workspaceId!)
+        .order("sent_at", { ascending: false })
+        .limit(100);
+      if (error) throw error;
+      return data as any[];
+    },
+    enabled: !!workspaceId,
+  });
+};
+

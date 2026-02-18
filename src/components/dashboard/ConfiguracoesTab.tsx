@@ -11,16 +11,19 @@ import {
   CreditCard,
   Calendar,
   Loader2,
-  Upload } from
-"lucide-react";
+  Upload,
+  CheckCircle2,
+  XCircle,
+} from "lucide-react";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogDescription } from
-"@/components/ui/dialog";
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { useProfile, useUpdateProfile, useUpdateWorkspace, useSubscription, useWhatsappConfig, useGoogleCalendarConfig } from "@/hooks/use-data";
+import { WhatsAppEvolutionDialog } from "@/components/dashboard/WhatsAppEvolutionDialog";
 import { useWorkspace } from "@/hooks/use-workspace";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -46,10 +49,6 @@ const ConfiguracoesTab = () => {
   const [activeSection, setActiveSection] = useState("perfil");
   const [whatsappDialogOpen, setWhatsappDialogOpen] = useState(false);
   const [gcalDialogOpen, setGcalDialogOpen] = useState(false);
-  const [waBizId, setWaBizId] = useState("");
-  const [waPhoneId, setWaPhoneId] = useState("");
-  const [waToken, setWaToken] = useState("");
-  const [savingWa, setSavingWa] = useState(false);
   const [savingGcal, setSavingGcal] = useState(false);
   const [notifEmail, setNotifEmail] = useState(false);
   const [notifPayment, setNotifPayment] = useState(false);
@@ -135,38 +134,8 @@ const ConfiguracoesTab = () => {
     }
   };
 
-  const handleSaveWhatsapp = async () => {
-    if (!workspace) return;
-    setSavingWa(true);
-    try {
-      const existing = whatsappCfg;
-      if (existing) {
-        const { error } = await supabase.from("whatsapp_config").update({
-          business_id: waBizId,
-          phone_number_id: waPhoneId,
-          access_token: waToken,
-          verified: true
-        }).eq("id", existing.id);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase.from("whatsapp_config").insert({
-          workspace_id: workspace.id,
-          business_id: waBizId,
-          phone_number_id: waPhoneId,
-          access_token: waToken,
-          verified: true
-        });
-        if (error) throw error;
-      }
-      await refetchWa();
-      toast({ title: "WhatsApp conectado!" });
-      setWhatsappDialogOpen(false);
-    } catch (err: any) {
-      toast({ variant: "destructive", title: "Erro", description: err.message });
-    } finally {
-      setSavingWa(false);
-    }
-  };
+
+
 
   const handleConnectGoogleCalendar = async () => {
     if (!workspace) return;
@@ -379,32 +348,45 @@ const ConfiguracoesTab = () => {
               <p className="text-sm text-muted-foreground">Conecte suas ferramentas externas.</p>
             </div>
             <div className="space-y-4">
-              {/* WhatsApp */}
-              <div className="rounded-xl border border-border bg-card p-5 shadow-soft flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center">
-                    <MessageSquare className="h-5 w-5 text-muted-foreground" />
+              {/* WhatsApp via QR Code */}
+              <div className="rounded-xl border border-border bg-card p-5 shadow-soft">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center">
+                      <MessageSquare className="h-5 w-5 text-muted-foreground" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-foreground">WhatsApp via QR Code</p>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        {(whatsappCfg as any)?.connection_status === "connected" ? (
+                          <>
+                            <CheckCircle2 className="h-3 w-3 text-accent" />
+                            <p className="text-xs text-accent">Conectado</p>
+                            {(whatsappCfg as any)?.evolution_instance && (
+                              <p className="text-xs text-muted-foreground">· {(whatsappCfg as any).evolution_instance}</p>
+                            )}
+                          </>
+                        ) : (
+                          <>
+                            <XCircle className="h-3 w-3 text-muted-foreground" />
+                            <p className="text-xs text-muted-foreground">
+                              {(whatsappCfg as any)?.connection_status === "connecting" ? "Aguardando QR..." : "Não conectado"}
+                            </p>
+                          </>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <p className="font-medium text-foreground">WhatsApp Cloud API</p>
-                    <p className={`text-xs ${whatsappCfg?.verified ? "text-accent" : "text-muted-foreground"}`}>
-                      {whatsappCfg?.verified ? "Conectado" : "Não conectado"}
-                    </p>
-                  </div>
+                  <Button
+                    variant={(whatsappCfg as any)?.connection_status === "connected" ? "outline" : "hero"}
+                    size="sm"
+                    onClick={() => setWhatsappDialogOpen(true)}
+                  >
+                    {(whatsappCfg as any)?.connection_status === "connected" ? "Configurar" : "Conectar"}
+                  </Button>
                 </div>
-                <Button
-                variant={whatsappCfg?.verified ? "outline" : "hero"}
-                size="sm"
-                onClick={() => {
-                  setWaBizId(whatsappCfg?.business_id || "");
-                  setWaPhoneId(whatsappCfg?.phone_number_id || "");
-                  setWaToken(whatsappCfg?.access_token || "");
-                  setWhatsappDialogOpen(true);
-                }}>
-
-                  {whatsappCfg?.verified ? "Configurar" : "Conectar"}
-                </Button>
               </div>
+
               {/* Google Calendar */}
               <div className="rounded-xl border border-border bg-card p-5 shadow-soft flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -419,44 +401,25 @@ const ConfiguracoesTab = () => {
                   </div>
                 </div>
                 <Button
-                variant={(gcalCfg?.connected && gcalCfg?.access_token) ? "outline" : "hero"}
-                size="sm"
-                onClick={() => setGcalDialogOpen(true)}>
-
+                  variant={(gcalCfg?.connected && gcalCfg?.access_token) ? "outline" : "hero"}
+                  size="sm"
+                  onClick={() => setGcalDialogOpen(true)}
+                >
                   {(gcalCfg?.connected && gcalCfg?.access_token) ? "Configurar" : (gcalCfg?.connected && !gcalCfg?.access_token) ? "Reconectar" : "Conectar"}
                 </Button>
               </div>
             </div>
 
-            {/* WhatsApp Dialog */}
-            <Dialog open={whatsappDialogOpen} onOpenChange={setWhatsappDialogOpen}>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Configurar WhatsApp Cloud API</DialogTitle>
-                  <DialogDescription>Informe os dados da sua conta WhatsApp Business.</DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4 pt-2">
-                  <div className="space-y-2">
-                    <Label>Business ID</Label>
-                    <Input placeholder="Ex: 123456789012345" value={waBizId} onChange={(e) => setWaBizId(e.target.value)} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Phone Number ID</Label>
-                    <Input placeholder="Ex: 123456789012345" value={waPhoneId} onChange={(e) => setWaPhoneId(e.target.value)} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Access Token</Label>
-                    <Input type="password" placeholder="Token de acesso permanente" value={waToken} onChange={(e) => setWaToken(e.target.value)} />
-                  </div>
-                  <div className="rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground">
-                    <strong className="text-foreground">Nota:</strong> O custo das mensagens é pago diretamente por você à Meta.
-                  </div>
-                  <Button variant="hero" className="w-full" onClick={handleSaveWhatsapp} disabled={savingWa || !waBizId || !waPhoneId || !waToken}>
-                    {savingWa ? "Salvando..." : "Salvar e conectar"}
-                  </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
+            {/* WhatsApp Evolution Dialog */}
+            {workspace && (
+              <WhatsAppEvolutionDialog
+                open={whatsappDialogOpen}
+                onOpenChange={setWhatsappDialogOpen}
+                workspaceId={workspace.id}
+                existingConfig={whatsappCfg}
+                onSaved={() => refetchWa()}
+              />
+            )}
 
             {/* Google Calendar Dialog */}
             <Dialog open={gcalDialogOpen} onOpenChange={setGcalDialogOpen}>

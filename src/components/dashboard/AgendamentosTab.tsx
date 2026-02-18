@@ -17,9 +17,10 @@ import {
   Timer,
   Pencil,
   Trash2,
+  MessageCircle,
 } from "lucide-react";
 import { ReportButton } from "@/components/dashboard/ReportModal";
-import { useAppointments, useClients } from "@/hooks/use-data";
+import { useAppointments, useClients, useMessageTemplates } from "@/hooks/use-data";
 import { useWorkspace } from "@/hooks/use-workspace";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -84,9 +85,15 @@ const AgendamentosTab = () => {
   const [deleteApt, setDeleteApt] = useState<any>(null);
   const [deleting, setDeleting] = useState(false);
 
+  // WhatsApp manual send state
+  const [whatsAppApt, setWhatsAppApt] = useState<any>(null);
+  const [selectedTemplateId, setSelectedTemplateId] = useState("");
+  const [sendingWa, setSendingWa] = useState(false);
+
   const { data: workspace } = useWorkspace();
   const { data: appointments, isLoading } = useAppointments(workspace?.id);
   const { data: clients } = useClients(workspace?.id);
+  const { data: templates } = useMessageTemplates(workspace?.id);
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -94,6 +101,54 @@ const AgendamentosTab = () => {
     const clientName = (a.clients as any)?.full_name ?? "";
     return clientName.toLowerCase().includes(search.toLowerCase());
   });
+
+  // Substituição de variáveis
+  const substituteVars = (body: string, apt: any) => {
+    const clientName = (apt.clients as any)?.full_name ?? "";
+    const data = format(new Date(apt.starts_at), "dd/MM/yyyy");
+    const hora = format(new Date(apt.starts_at), "HH:mm");
+    return body
+      .replace(/\{\{nome_cliente\}\}/g, clientName)
+      .replace(/\{\{data_sessao\}\}/g, data)
+      .replace(/\{\{hora_sessao\}\}/g, hora);
+  };
+
+  const selectedTemplate = (templates ?? []).find((t) => t.id === selectedTemplateId);
+  const messagePreview = whatsAppApt && selectedTemplate ? substituteVars(selectedTemplate.body, whatsAppApt) : "";
+
+  const handleSendWhatsApp = async () => {
+    if (!whatsAppApt || !selectedTemplate || !workspace) return;
+    const client = clients?.find((c) => c.id === whatsAppApt.client_id);
+    if (!client?.phone) {
+      toast({ variant: "destructive", title: "Este cliente não tem telefone cadastrado." });
+      return;
+    }
+    setSendingWa(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await supabase.functions.invoke("send-whatsapp-message", {
+        body: {
+          workspace_id: workspace.id,
+          phone: client.phone,
+          message: messagePreview,
+          appointment_id: whatsAppApt.id,
+          client_id: client.id,
+          template_id: selectedTemplate.id,
+        },
+      });
+      if (res.error) throw new Error(res.error.message);
+      const result = res.data as any;
+      if (!result?.success) throw new Error(result?.error ?? "Erro ao enviar");
+      toast({ title: "Mensagem enviada! ✅" });
+      setWhatsAppApt(null);
+      setSelectedTemplateId("");
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Erro ao enviar", description: err.message });
+    } finally {
+      setSendingWa(false);
+    }
+  };
+
 
   const handleAdd = async () => {
     if (!workspace || !clientId || !date || !time) return;
@@ -351,6 +406,13 @@ const AgendamentosTab = () => {
                 </span>
                 <div className="flex items-center gap-1">
                   <button
+                    onClick={() => { setWhatsAppApt(apt); setSelectedTemplateId(""); }}
+                    className="h-8 w-8 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-accent/10 hover:text-accent"
+                    title="Enviar WhatsApp"
+                  >
+                    <MessageCircle className="h-4 w-4" />
+                  </button>
+                  <button
                     onClick={() => setDetailApt(apt)}
                     className="h-8 w-8 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-primary"
                     title="Ver detalhes"
@@ -372,6 +434,7 @@ const AgendamentosTab = () => {
                     <Trash2 className="h-4 w-4" />
                   </button>
                 </div>
+
               </div>
             );
           })}
@@ -543,8 +606,69 @@ const AgendamentosTab = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* WhatsApp Manual Send Dialog */}
+      <Dialog open={!!whatsAppApt} onOpenChange={(v) => { if (!v) { setWhatsAppApt(null); setSelectedTemplateId(""); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <MessageCircle className="h-5 w-5 text-accent" />
+              Enviar mensagem WhatsApp
+            </DialogTitle>
+          </DialogHeader>
+          {whatsAppApt && (
+            <div className="space-y-4 pt-2">
+              <div className="rounded-lg bg-muted/50 p-3 text-sm">
+                <span className="text-muted-foreground">Para:</span>{" "}
+                <span className="font-medium">{(whatsAppApt.clients as any)?.full_name}</span>
+                {" · "}
+                <span className="text-muted-foreground">{format(new Date(whatsAppApt.starts_at), "dd/MM/yyyy 'às' HH:mm")}</span>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Template de mensagem</Label>
+                <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione um template..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(templates ?? []).map((t) => (
+                      <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {messagePreview && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground uppercase tracking-wider">Prévia da mensagem</Label>
+                  <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm text-foreground whitespace-pre-wrap">
+                    {messagePreview}
+                  </div>
+                </div>
+              )}
+
+              {!clients?.find((c) => c.id === whatsAppApt.client_id)?.phone && (
+                <div className="rounded-lg bg-destructive/10 border border-destructive/20 p-3 text-xs text-destructive">
+                  ⚠️ Este cliente não tem telefone cadastrado. Adicione o telefone no cadastro do cliente.
+                </div>
+              )}
+
+              <Button
+                variant="hero"
+                className="w-full"
+                onClick={handleSendWhatsApp}
+                disabled={sendingWa || !selectedTemplateId || !clients?.find((c) => c.id === whatsAppApt.client_id)?.phone}
+              >
+                {sendingWa ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Enviando...</> : "Enviar agora"}
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
 
 export default AgendamentosTab;
+
