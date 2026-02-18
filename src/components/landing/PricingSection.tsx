@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
+import { Link } from "react-router-dom";
 import { Check, ArrowRight, Zap } from "lucide-react";
 
 const included = [
@@ -11,9 +12,6 @@ const included = [
   "Regras de envio inteligentes",
   "Suporte por email",
 ];
-
-const MONTHLY_LINK = "https://www.asaas.com/c/tiyjqqddhp6pjeva";
-const ANNUAL_LINK = "https://www.asaas.com/c/ev0njmv7q0f0hohc";
 
 export const PricingSection = () => {
   return (
@@ -54,14 +52,11 @@ export const PricingSection = () => {
                 <span className="text-5xl font-black text-foreground">R$49</span>
                 <span className="text-muted-foreground text-lg">,90/mês</span>
               </div>
-              <Button
-                variant="hero-outline"
-                size="lg"
-                className="w-full mb-6"
-                onClick={() => window.open(MONTHLY_LINK, "_blank")}
-              >
-                Começar 7 dias grátis
-                <ArrowRight className="h-4 w-4" />
+              <Button variant="hero-outline" size="lg" className="w-full mb-6" asChild>
+                <Link to="/signup">
+                  Começar 7 dias grátis
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
               </Button>
               <ul className="space-y-3 flex-1">
                 {included.map((item) => (
@@ -72,7 +67,7 @@ export const PricingSection = () => {
                 ))}
               </ul>
               <p className="text-xs text-muted-foreground mt-6 text-center">
-                Sem fidelidade. Cancele quando quiser.
+                7 dias grátis. Sem cartão. Cancele quando quiser.
               </p>
             </div>
           </motion.div>
@@ -103,14 +98,11 @@ export const PricingSection = () => {
                 <Zap className="h-3.5 w-3.5 text-accent" />
                 <span className="text-xs font-semibold text-accent">Economize R$ 120/ano</span>
               </div>
-              <Button
-                variant="hero"
-                size="lg"
-                className="w-full mb-6"
-                onClick={() => window.open(ANNUAL_LINK, "_blank")}
-              >
-                Começar 7 dias grátis
-                <ArrowRight className="h-4 w-4" />
+              <Button variant="hero" size="lg" className="w-full mb-6" asChild>
+                <Link to="/signup">
+                  Começar 7 dias grátis
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
               </Button>
               <ul className="space-y-3 flex-1">
                 {included.map((item) => (
@@ -121,7 +113,7 @@ export const PricingSection = () => {
                 ))}
               </ul>
               <p className="text-xs text-muted-foreground mt-6 text-center">
-                12 meses de fidelidade. Renovação automática.
+                7 dias grátis. Sem cartão. 12 meses de fidelidade.
               </p>
             </div>
           </motion.div>
