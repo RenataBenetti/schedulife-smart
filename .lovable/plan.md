@@ -1,44 +1,41 @@
 
-## Resolver: "A homepage não inclui link para a Política de Privacidade"
+## Resolver definitivamente: "Homepage não inclui link para Política de Privacidade"
 
-### Causa do problema
+### Causa raiz confirmada
 
-O robô do Google lê o HTML bruto de `https://agendix.soriamarketing.com.br`. O que ele encontra é:
+O OAuth Consent Screen do Google requer que a homepage tenha um link **visível e clicável** para a Política de Privacidade. A abordagem `display:none` não é suficiente para essa validação específica — o Google inspeciona se um usuário real conseguiria encontrar o link.
 
-```html
-<div id="root"></div>
-<script src="/assets/index.js"></script>
-```
-
-O rodapé com os links de Privacidade e Termos está dentro do React — o robô nunca o vê. Por isso o Google rejeita com "homepage não inclui link para a Política de Privacidade".
+Confirmado por diagnóstico:
+- `/privacidade.html` está online e acessível
+- `/termos.html` está online e acessível
+- Os links estáticos no HTML existem, mas estão ocultos com `display:none`
 
 ### Solução
 
-Adicionar um bloco de links estáticos diretamente no `index.html`, **antes** da `div#root`. O robô vai ler esses links no HTML puro. Quando o React carregar, o app visual vai sobrepor esses links (eles ficam escondidos visualmente atrás do app), mas o robô já terá lido.
+Adicionar links **visíveis** para `/privacidade.html` e `/termos.html` no rodapé do site React (`FooterSection.tsx`), substituindo ou complementando os links internos do React Router (`/privacidade` e `/termos`) que existem atualmente.
 
-### Mudança no arquivo `index.html`
+Dessa forma:
+- O Google vê o link real no HTML renderizado (quando acessa com JavaScript habilitado)
+- O crawler de HTML estático vê o link no bloco `display:none` (fallback já existente)
+- Um usuário real consegue clicar e acessar as páginas
 
-Adicionar dentro do `<body>`, antes de `<div id="root">`:
+### Arquivos a modificar
 
-```html
-<!-- Links estáticos para verificação do Google (visível para crawlers) -->
-<div style="display:none">
-  <a href="/privacidade.html">Política de Privacidade</a>
-  <a href="/termos.html">Termos de Serviço</a>
-</div>
-```
+**`src/components/landing/FooterSection.tsx`**
+- Alterar os links de Privacidade e Termos para apontar para `/privacidade.html` e `/termos.html` com tags `<a href>` nativas (não React Router `<Link>`)
+- Isso garante que as URLs absolutas funcionem corretamente
 
-Também atualizar:
-- `<title>Lovable App</title>` → `<title>Agendix — Gestão de Agendamentos</title>`
-- `<meta name="description">` → descrição do Agendix
+**`index.html`**
+- Manter os links estáticos existentes (já estão corretos como fallback para crawlers sem JS)
+- Remover o `display:none` do bloco de links estáticos para torná-los visíveis mesmo sem JavaScript
 
-### Por que `display:none` funciona para o Google
+### Por que `<a href>` nativo e não React Router `<Link>`
 
-O Google aceita links em `display:none` para fins de verificação de página (diferente de SEO onde pode penalizar conteúdo oculto). O que importa é que o link esteja no HTML — e estará.
+O React Router renderiza links como `<a href="/privacidade">`, mas `/privacidade` é uma rota SPA (Single Page Application) — quando o Google acessa esse link, pode receber um 404 ou uma página em branco antes do React carregar. Já `/privacidade.html` é um arquivo estático real, sempre disponível.
 
-### Passos após publicar
+### Resultado esperado
 
-1. Publique no Lovable (**Publish → Update**)
-2. Volte ao Google Cloud Console → OAuth Consent Screen
-3. Clique em **"Verificar aplicativo"** novamente
-4. O Google vai acessar a homepage, encontrar o link, e o erro deverá desaparecer
+Após publicar:
+1. Acesse `https://agendix.soriamarketing.com.br` — o rodapé terá links visíveis para Privacidade e Termos
+2. No Google Cloud Console, clique em "Verificar aplicativo" novamente
+3. O Google encontrará o link e o erro será resolvido
