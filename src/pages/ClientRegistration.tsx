@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,6 +23,7 @@ interface ClientData {
 }
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
 export default function ClientRegistration() {
   const { token } = useParams<{ token: string }>();
@@ -50,35 +50,39 @@ export default function ClientRegistration() {
   }, [token]);
 
   const loadToken = async () => {
-    const { data, error } = await supabase
-      .from("client_registration_tokens" as any)
-      .select("completed, expires_at, client_id, clients(full_name, email, phone, cpf, rg, address_zip, address_street, address_number, address_complement, address_neighborhood, address_city, address_state)")
-      .eq("token", token!)
-      .maybeSingle();
+    try {
+      const res = await fetch(
+        `${SUPABASE_URL}/functions/v1/client-registration?token=${encodeURIComponent(token!)}`,
+        { headers: { "apikey": ANON_KEY, "Content-Type": "application/json" } }
+      );
+      const data = await res.json();
 
-    if (error || !data) { setStatus("invalid"); return; }
+      if (res.status === 404) { setStatus("invalid"); return; }
+      if (res.status === 409) { setStatus("completed_already"); return; }
+      if (res.status === 410) { setStatus("expired"); return; }
+      if (!res.ok) { setStatus("invalid"); return; }
 
-    if ((data as any).completed) { setStatus("completed_already"); return; }
-    if (new Date((data as any).expires_at) < new Date()) { setStatus("expired"); return; }
-
-    const c = (data as any).clients as any;
-    if (c) {
-      setForm({
-        full_name: c.full_name ?? "",
-        email: c.email ?? "",
-        phone: c.phone ?? "",
-        cpf: c.cpf ?? "",
-        rg: c.rg ?? "",
-        address_zip: c.address_zip ?? "",
-        address_street: c.address_street ?? "",
-        address_number: c.address_number ?? "",
-        address_complement: c.address_complement ?? "",
-        address_neighborhood: c.address_neighborhood ?? "",
-        address_city: c.address_city ?? "",
-        address_state: c.address_state ?? "",
-      });
+      const c = data.client;
+      if (c) {
+        setForm({
+          full_name: c.full_name ?? "",
+          email: c.email ?? "",
+          phone: c.phone ?? "",
+          cpf: c.cpf ?? "",
+          rg: c.rg ?? "",
+          address_zip: c.address_zip ?? "",
+          address_street: c.address_street ?? "",
+          address_number: c.address_number ?? "",
+          address_complement: c.address_complement ?? "",
+          address_neighborhood: c.address_neighborhood ?? "",
+          address_city: c.address_city ?? "",
+          address_state: c.address_state ?? "",
+        });
+      }
+      setStatus("valid");
+    } catch {
+      setStatus("invalid");
     }
-    setStatus("valid");
   };
 
   const handleCepLookup = async (cep: string) => {
