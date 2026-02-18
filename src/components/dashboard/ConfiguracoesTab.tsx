@@ -478,38 +478,93 @@ const ConfiguracoesTab = () => {
           </div>
         }
 
-        {activeSection === "plano" &&
-        <div className="space-y-6">
-            <div>
-              <h3 className="text-lg font-semibold text-foreground mb-1">Plano & Assinatura</h3>
-              <p className="text-sm text-muted-foreground">Gerencie seu plano.</p>
-            </div>
-            <div className="rounded-xl border border-border bg-card p-6 shadow-soft space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-semibold text-foreground">Plano Profissional</p>
-                  <p className="text-sm text-muted-foreground">R$ 39/mês</p>
-                </div>
-                <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${planInfo.className}`}>
-                  {planInfo.label}
-                </span>
+        {activeSection === "plano" && (() => {
+          const MONTHLY_LINK = "https://www.asaas.com/c/tiyjqqddhp6pjeva";
+          const ANNUAL_LINK = "https://www.asaas.com/c/ev0njmv7q0f0hohc";
+          const subStatus = subscription?.status;
+          const plan_type = (subscription as any)?.plan_type ?? "monthly";
+          const paymentLink = plan_type === "annual" ? ANNUAL_LINK : MONTHLY_LINK;
+          const planLabel = plan_type === "annual" ? "Plano Anual" : "Plano Mensal";
+          const planPrice = plan_type === "annual" ? "R$ 39,90/mês" : "R$ 49,90/mês";
+
+          return (
+            <div className="space-y-6">
+              <div>
+                <h3 className="text-lg font-semibold text-foreground mb-1">Plano & Assinatura</h3>
+                <p className="text-sm text-muted-foreground">Gerencie seu plano.</p>
               </div>
-              {subscription &&
-            <div className="border-t border-border pt-4 space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Início do trial</span>
-                    <span className="text-foreground">{format(new Date(subscription.trial_start), "dd/MM/yyyy")}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Expira em</span>
-                    <span className="text-foreground">{format(new Date(subscription.trial_end), "dd/MM/yyyy")}</span>
-                  </div>
+
+              {/* Overdue warning */}
+              {subStatus === "overdue" && (
+                <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 space-y-3">
+                  <p className="font-semibold text-destructive">Pagamento em atraso</p>
+                  <p className="text-sm text-muted-foreground">Regularize seu pagamento para continuar usando o Agendix.</p>
+                  <Button variant="destructive" size="sm" className="w-full" onClick={() => window.open(paymentLink, "_blank")}>
+                    Regularizar pagamento
+                  </Button>
                 </div>
-            }
-              <Button variant="hero" size="sm" className="w-full">Assinar agora — R$ 39/mês</Button>
+              )}
+
+              <div className="rounded-xl border border-border bg-card p-6 shadow-soft space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-semibold text-foreground">
+                      {subStatus === "trial_active" ? "Trial gratuito" : planLabel}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {subStatus === "trial_active" ? "7 dias para experimentar" : planPrice}
+                    </p>
+                  </div>
+                  <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${planInfo.className}`}>
+                    {planInfo.label}
+                  </span>
+                </div>
+
+                {subscription && (
+                  <div className="border-t border-border pt-4 space-y-2">
+                    {subStatus === "trial_active" && (
+                      <>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Início do trial</span>
+                          <span className="text-foreground">{format(new Date(subscription.trial_start), "dd/MM/yyyy")}</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Expira em</span>
+                          <span className="text-foreground">{format(new Date(subscription.trial_end), "dd/MM/yyyy")}</span>
+                        </div>
+                      </>
+                    )}
+                    {subStatus === "active" && subscription.current_period_end && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Próxima renovação</span>
+                        <span className="text-foreground">{format(new Date(subscription.current_period_end), "dd/MM/yyyy")}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* CTA based on status */}
+                {subStatus === "trial_active" && (
+                  <div className="space-y-2 pt-2 border-t border-border">
+                    <p className="text-xs text-muted-foreground text-center mb-3">Escolha um plano para continuar após o trial</p>
+                    <Button variant="hero-outline" size="sm" className="w-full" onClick={() => window.open(MONTHLY_LINK, "_blank")}>
+                      Assinar Mensal — R$ 49,90/mês
+                    </Button>
+                    <Button variant="hero" size="sm" className="w-full" onClick={() => window.open(ANNUAL_LINK, "_blank")}>
+                      Assinar Anual — R$ 39,90/mês ✦ Economize R$ 120
+                    </Button>
+                  </div>
+                )}
+
+                {subStatus === "active" && (
+                  <Button variant="outline" size="sm" className="w-full" onClick={() => window.open(paymentLink, "_blank")}>
+                    Gerenciar assinatura
+                  </Button>
+                )}
+              </div>
             </div>
-          </div>
-        }
+          );
+        })()}
       </div>
     </div>);
 
