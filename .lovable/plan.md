@@ -1,58 +1,54 @@
 
-## Criar Páginas de Política de Privacidade e Termos de Serviço
+## Corrigir o Erro de Verificação do Google — Domínio agendix.soriamarketing.com.br
 
-### O que o Google está pedindo
+### Por que o Google rejeita as páginas atuais?
 
-Conforme a imagem enviada, o Google exige dois links públicos:
-1. **Link da Política de Privacidade** — explicando quais dados o app coleta e como usa
-2. **Link dos Termos de Serviço** — regras de uso da plataforma
+As páginas `/privacidade` e `/termos` são parte do app React. Quando o **robô do Google** tenta acessá-las, ele não executa JavaScript — ele só lê o HTML bruto. O que ele encontra é algo assim:
 
-### Links que você vai receber ao final
+```html
+<div id="root"></div>
+<script src="/assets/index.js"></script>
+```
 
-Após a implementação e publicação, você colará estes dois links no Google Cloud Console:
+Ou seja, página em branco do ponto de vista do robô. Por isso o Google diz "formatação incorreta" e rejeita.
 
-- Política de Privacidade: `https://schedulife-smart.lovable.app/privacidade`
-- Termos de Serviço: `https://schedulife-smart.lovable.app/termos`
+### Solução: Criar arquivos HTML estáticos na pasta public/
 
-### O que será criado
+Criar dois arquivos `.html` puros que o Google consegue ler sem precisar de JavaScript:
 
-**1. Página de Política de Privacidade** — `src/pages/PrivacyPolicy.tsx`
+- `public/privacidade.html`
+- `public/termos.html`
 
-Página pública com conteúdo completo e real exigido pelo Google, incluindo:
-- Dados coletados: nome, e-mail, dados do Google Calendar (eventos, horários)
-- Finalidade: agendamentos, notificações via WhatsApp
-- Compartilhamento com Google e Meta/WhatsApp
-- Que o app **não vende dados a terceiros**
+Esses arquivos são servidos diretamente pelo servidor web, sem passar pelo React. O conteúdo será **idêntico** ao das páginas já criadas, mas em HTML simples com CSS inline.
+
+### URLs que você vai usar no Google Cloud Console
+
+Após publicar, use estes links no Google OAuth Consent Screen:
+
+| Campo | URL |
+|---|---|
+| URL da página inicial | `https://agendix.soriamarketing.com.br` |
+| Política de Privacidade | `https://agendix.soriamarketing.com.br/privacidade.html` |
+| Termos de Serviço | `https://agendix.soriamarketing.com.br/termos.html` |
+
+### Arquivos a criar
+
+**`public/privacidade.html`** — Política de Privacidade em HTML puro, com todo o conteúdo já presente na página React (`src/pages/PrivacyPolicy.tsx`), incluindo obrigatoriamente:
+- Dados coletados do Google Calendar
+- Declaração de não venda de dados a terceiros
 - Como revogar o acesso ao Google Calendar
-- Direitos do usuário (acesso, correção, exclusão)
-- Dados de contato do responsável
-- Data de vigência
+- Dados de contato
 
-**2. Página de Termos de Serviço** — `src/pages/TermsOfService.tsx`
+**`public/termos.html`** — Termos de Serviço em HTML puro, com todo o conteúdo já presente em `src/pages/TermsOfService.tsx`.
 
-Página pública com os termos de uso da plataforma Agendix, incluindo:
-- Descrição do serviço (gestão de agendamentos para profissionais)
-- Responsabilidades do usuário
-- Política de assinatura e cancelamento
-- Limitação de responsabilidade
+### Nenhuma mudança nas páginas React
 
-**3. Atualizar rotas** — `src/App.tsx`
-
-Adicionar duas rotas públicas (sem necessidade de login):
-```
-/privacidade → <PrivacyPolicy />
-/termos      → <TermsOfService />
-```
-
-**4. Atualizar rodapé** — `src/components/landing/FooterSection.tsx`
-
-Trocar os links `href="#"` por links reais apontando para as novas páginas, usando o componente `<Link>` do React Router.
+As páginas `/privacidade` e `/termos` no app React continuam funcionando normalmente para os usuários. Os arquivos `.html` são exclusivos para o robô do Google.
 
 ### Passos após a implementação
 
-1. Clique em **Publish → Update** no Lovable para publicar as páginas
-2. Acesse o Google Cloud Console → OAuth Consent Screen
-3. Cole os dois links nos campos correspondentes:
-   - Política de Privacidade: `https://schedulife-smart.lovable.app/privacidade`
-   - Termos de Serviço: `https://schedulife-smart.lovable.app/termos`
-4. Salve e solicite a verificação do app para remover o aviso de "acesso bloqueado"
+1. Clique em **Publish → Update** no Lovable para publicar os arquivos estáticos
+2. No Google Cloud Console → OAuth Consent Screen, corrija os campos:
+   - Política de Privacidade: `https://agendix.soriamarketing.com.br/privacidade.html`
+   - Termos de Serviço: `https://agendix.soriamarketing.com.br/termos.html`
+3. Salve e tente a verificação novamente
