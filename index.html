@@ -4,32 +4,29 @@
     <meta charset="UTF-8" />
     <meta name="google-site-verification" content="IF1SDrhMpbWxMIdg-ZqHO2GUKp5vywVsLojIaubL1zQ" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <!-- TODO: Set the document title to the name of your application -->
     <title>Agendix — Gestão de Agendamentos</title>
     <meta name="description" content="Agendix: plataforma de gestão de agendamentos para profissionais de saúde. Organize clientes, sessões, pagamentos e mensagens em um só lugar.">
     <meta name="author" content="Lovable" />
-
-    <!-- TODO: Update og:title to match your application name -->
-    
-    
     <meta property="og:type" content="website" />
     <meta property="og:image" content="https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/30422ca8-e9d4-492e-9d96-2d97aa767d27/id-preview-24461c77--74d20fb1-95da-408b-8421-de06cd2197bd.lovable.app-1771291228320.png">
-
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:site" content="@Lovable" />
     <meta name="twitter:image" content="https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/30422ca8-e9d4-492e-9d96-2d97aa767d27/id-preview-24461c77--74d20fb1-95da-408b-8421-de06cd2197bd.lovable.app-1771291228320.png">
-    <meta property="og:title" content="Lovable App">
-  <meta name="twitter:title" content="Lovable App">
-  <meta property="og:description" content="Lovable Generated Project">
-  <meta name="twitter:description" content="Lovable Generated Project">
-</head>
+    <meta property="og:title" content="Agendix — Gestão de Agendamentos">
+    <meta name="twitter:title" content="Agendix — Gestão de Agendamentos">
+    <meta property="og:description" content="Agendix: plataforma de gestão de agendamentos para profissionais de saúde.">
+    <meta name="twitter:description" content="Agendix: plataforma de gestão de agendamentos para profissionais de saúde.">
+  </head>
 
   <body>
-    <div id="static-footer" style="text-align:center;padding:12px;font-size:13px;color:#888;font-family:sans-serif;">
+    <!-- Links estáticos para verificação do Google OAuth Consent Screen.
+         Ficam fixados atrás do app React (z-index:0) então não atrapalham a UI. -->
+    <div id="static-footer" style="position:fixed;bottom:0;left:0;right:0;text-align:center;padding:10px;font-size:12px;color:#999;font-family:sans-serif;background:#f9fafb;z-index:0;">
       <a href="/privacidade.html" style="color:#6366f1;margin:0 8px;">Política de Privacidade</a> ·
       <a href="/termos.html" style="color:#6366f1;margin:0 8px;">Termos de Serviço</a>
     </div>
-    <div id="root"></div>
+    <!-- React mounts here, covers the static footer above -->
+    <div id="root" style="position:relative;z-index:1;min-height:100vh;"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
