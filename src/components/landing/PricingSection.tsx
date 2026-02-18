@@ -4,15 +4,15 @@ import { Link } from "react-router-dom";
 import { Check, ArrowRight } from "lucide-react";
 
 const included = [
-  "Confirmação automática via WhatsApp",
-  "Agenda integrada com Google Calendar",
-  "Cobranças automáticas via Asaas",
-  "Prontuários e histórico de sessões",
-  "Templates de mensagem personalizáveis",
-  "Regras de envio inteligentes",
-  "Multi-profissional (workspace)",
-  "Suporte por email",
-];
+"Confirmação automática via WhatsApp",
+"Agenda integrada com Google Calendar",
+"Cobranças automáticas via Asaas",
+"Prontuários e histórico de sessões",
+"Templates de mensagem personalizáveis",
+"Regras de envio inteligentes",
+"Multi-profissional (workspace)",
+"Suporte por email"];
+
 
 export const PricingSection = () => {
   return (
@@ -22,8 +22,8 @@ export const PricingSection = () => {
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
-          className="text-center max-w-2xl mx-auto mb-14"
-        >
+          className="text-center max-w-2xl mx-auto mb-14">
+
           <span className="text-sm font-semibold text-primary uppercase tracking-wider">Preço</span>
           <h2 className="text-3xl md:text-4xl font-bold text-foreground mt-3 mb-4">
             Simples e sem surpresas
@@ -37,8 +37,8 @@ export const PricingSection = () => {
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
-          className="max-w-md mx-auto"
-        >
+          className="max-w-md mx-auto">
+
           <div className="rounded-2xl border-2 border-primary bg-background shadow-elevated p-8 relative overflow-hidden">
             <div className="absolute top-0 right-0 gradient-primary text-primary-foreground text-xs font-bold px-4 py-1 rounded-bl-lg">
               POPULAR
@@ -48,7 +48,7 @@ export const PricingSection = () => {
               <p className="text-sm text-muted-foreground">Tudo que você precisa para automatizar</p>
             </div>
             <div className="flex items-baseline gap-1 mb-6">
-              <span className="text-5xl font-black text-foreground">R$69</span>
+              <span className="text-5xl font-black text-foreground">R$39</span>
               <span className="text-muted-foreground">/mês</span>
             </div>
             <Button variant="hero" size="lg" className="w-full mb-6" asChild>
@@ -58,12 +58,12 @@ export const PricingSection = () => {
               </Link>
             </Button>
             <ul className="space-y-3">
-              {included.map((item) => (
-                <li key={item} className="flex items-start gap-3 text-sm">
+              {included.map((item) =>
+              <li key={item} className="flex items-start gap-3 text-sm">
                   <Check className="h-4 w-4 text-accent shrink-0 mt-0.5" />
                   <span className="text-foreground">{item}</span>
                 </li>
-              ))}
+              )}
             </ul>
             <p className="text-xs text-muted-foreground mt-6 text-center">
               Cancele quando quiser. Sem fidelidade.
@@ -71,6 +71,6 @@ export const PricingSection = () => {
           </div>
         </motion.div>
       </div>
-    </section>
-  );
+    </section>);
+
 };
