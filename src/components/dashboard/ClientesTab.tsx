@@ -125,7 +125,8 @@ const ClientesTab = () => {
     if (!workspace) return;
     try {
       const result = await createToken.mutateAsync({ workspace_id: workspace.id, client_id: client.id });
-      const url = `${window.location.origin}/cadastro/${result.token}`;
+      const APP_URL = import.meta.env.VITE_APP_URL || "https://schedulife-smart.lovable.app";
+      const url = `${APP_URL}/cadastro/${result.token}`;
       await navigator.clipboard.writeText(url);
       toast({ title: "Link copiado!", description: "Link de cadastro copiado para a área de transferência." });
     } catch (e: any) {
