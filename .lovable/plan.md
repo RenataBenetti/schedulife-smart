@@ -1,73 +1,32 @@
 
+## Problema
 
-# Cadastro Completo do Cliente com Link de Autopreenchimento
+O link de cadastro do cliente está sendo gerado com `window.location.origin`, que aponta para a URL de **preview do Lovable** (protegida por autenticação da plataforma). Quando o cliente abre o link, encontra o popup "Request access" do Lovable, bloqueando o acesso ao formulário.
 
-## O que sera feito
+## Solução
 
-### 1. Novos campos no banco de dados
-Adicionar as seguintes colunas na tabela `clients`:
-- `cpf` (texto, opcional)
-- `rg` (texto, opcional)
-- `address_street` (texto - rua/logradouro)
-- `address_number` (texto - numero)
-- `address_complement` (texto - complemento)
-- `address_neighborhood` (texto - bairro)
-- `address_city` (texto - cidade)
-- `address_state` (texto - estado)
-- `address_zip` (texto - CEP)
+Substituir `window.location.origin` pela URL publicada do projeto (`https://schedulife-smart.lovable.app`) ao montar o link de cadastro do cliente.
 
-### 2. Nova tabela de tokens de cadastro
-Criar tabela `client_registration_tokens` para gerar links unicos:
-- `id` (uuid)
-- `workspace_id` (uuid)
-- `client_id` (uuid) — vincula ao cliente ja criado
-- `token` (texto unico) — codigo do link
-- `expires_at` (timestamp) — expiracao do link (ex: 7 dias)
-- `completed` (boolean) — se o cliente ja preencheu
-- Politica RLS para membros do workspace + acesso publico via token
+## Arquivo a modificar
 
-### 3. Pagina publica de cadastro
-Criar uma pagina em `/cadastro/:token` que:
-- Nao exige login (eh publica)
-- Valida o token e verifica se nao expirou
-- Mostra formulario com: Nome, CPF, RG, Endereco completo, Telefone, Email
-- Preenche automaticamente os dados ja existentes do cliente
-- Ao submeter, atualiza os dados do cliente via edge function (sem autenticacao)
-- Mostra mensagem de sucesso apos preenchimento
+**`src/components/dashboard/ClientesTab.tsx`** — linha 128:
 
-### 4. Edge function para salvar dados publicamente
-Criar `client-registration` edge function que:
-- Recebe o token + dados do formulario
-- Valida o token (existe, nao expirou, nao foi usado)
-- Atualiza a tabela `clients` com os dados informados
-- Marca o token como `completed = true`
+```
+// Antes (problemático):
+const url = `${window.location.origin}/cadastro/${result.token}`;
 
-### 5. Atualizar o frontend do dashboard
-- Adicionar campos CPF, RG e endereco nos dialogs de criar/editar cliente
-- Adicionar botao "Enviar link de cadastro" na listagem e no detalhe do cliente
-- O botao gera o token, monta a URL e copia para a area de transferencia (ou abre opcao de envio via WhatsApp)
-- Mostrar indicador se o cliente ja completou o cadastro
-
-### 6. Fluxo do usuario
-
-```text
-Profissional                          Cliente
-     |                                   |
-     |-- Cria paciente (nome + tel) ---> |
-     |-- Gera link de cadastro --------> |
-     |-- Envia link (WhatsApp/copiar) -> |
-     |                                   |-- Abre link no navegador
-     |                                   |-- Preenche CPF, RG, endereco
-     |                                   |-- Submete formulario
-     |                                   |
-     |<-- Dados atualizados no sistema --|
+// Depois (correto):
+const APP_URL = import.meta.env.VITE_APP_URL || "https://schedulife-smart.lovable.app";
+const url = `${APP_URL}/cadastro/${result.token}`;
 ```
 
-## Arquivos que serao criados/modificados
-- **Migracao SQL**: adicionar colunas em `clients` + criar tabela `client_registration_tokens`
-- `supabase/functions/client-registration/index.ts` (nova edge function)
-- `src/pages/ClientRegistration.tsx` (nova pagina publica)
-- `src/App.tsx` (adicionar rota `/cadastro/:token`)
-- `src/components/dashboard/ClientesTab.tsx` (novos campos + botao de link)
-- `src/hooks/use-data.ts` (atualizar tipos dos mutations)
+## Por que esta abordagem?
 
+- A URL de preview (`id-preview--...lovable.app`) é protegida pela plataforma Lovable e exige autenticação.
+- A URL publicada (`schedulife-smart.lovable.app`) é pública e acessível por qualquer pessoa sem login.
+- Usar uma variável de ambiente `VITE_APP_URL` com fallback para a URL publicada é a abordagem mais robusta: permite sobrescrever se o domínio mudar, e funciona tanto em preview (para testes internos) quanto em produção.
+
+## Impacto
+
+- Mudança mínima (uma linha).
+- O link gerado passará a apontar para o domínio público do app, permitindo que o cliente acesse o formulário sem nenhuma barreira.
