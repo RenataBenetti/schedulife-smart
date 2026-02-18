@@ -1,0 +1,1 @@
+ALTER TABLE public.subscription_status ADD COLUMN IF NOT EXISTS plan_type text DEFAULT 'monthly';

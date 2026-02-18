@@ -554,6 +554,7 @@ export type Database = {
           current_period_start: string | null
           external_subscription_id: string | null
           id: string
+          plan_type: string | null
           status: Database["public"]["Enums"]["plan_status"]
           trial_end: string
           trial_start: string
@@ -566,6 +567,7 @@ export type Database = {
           current_period_start?: string | null
           external_subscription_id?: string | null
           id?: string
+          plan_type?: string | null
           status?: Database["public"]["Enums"]["plan_status"]
           trial_end?: string
           trial_start?: string
@@ -578,6 +580,7 @@ export type Database = {
           current_period_start?: string | null
           external_subscription_id?: string | null
           id?: string
+          plan_type?: string | null
           status?: Database["public"]["Enums"]["plan_status"]
           trial_end?: string
           trial_start?: string
