@@ -24,8 +24,10 @@ import {
   ChevronLeft,
   CalendarDays,
   MessageSquare,
+  Link,
+  CheckCircle,
 } from "lucide-react";
-import { useClients, useAddClient, useUpdateClient, useDeleteClient, useSessions, useAddSession, useUpdateSession, useMessageTemplates } from "@/hooks/use-data";
+import { useClients, useAddClient, useUpdateClient, useDeleteClient, useSessions, useAddSession, useUpdateSession, useMessageTemplates, useCreateRegistrationToken } from "@/hooks/use-data";
 import { supabase } from "@/integrations/supabase/client";
 import { useWorkspace } from "@/hooks/use-workspace";
 import { useToast } from "@/hooks/use-toast";
@@ -70,6 +72,15 @@ const ClientesTab = () => {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [cpf, setCpf] = useState("");
+  const [rg, setRg] = useState("");
+  const [addressZip, setAddressZip] = useState("");
+  const [addressStreet, setAddressStreet] = useState("");
+  const [addressNumber, setAddressNumber] = useState("");
+  const [addressComplement, setAddressComplement] = useState("");
+  const [addressNeighborhood, setAddressNeighborhood] = useState("");
+  const [addressCity, setAddressCity] = useState("");
+  const [addressState, setAddressState] = useState("");
   const [billingModel, setBillingModel] = useState("sessao_individual");
   const [sessionValue, setSessionValue] = useState("");
   const [billingTiming, setBillingTiming] = useState("depois_da_sessao");
@@ -84,7 +95,43 @@ const ClientesTab = () => {
   const updateClient = useUpdateClient();
   const deleteClient = useDeleteClient();
   const toggleTemplate = useToggleClientTemplate();
+  const createToken = useCreateRegistrationToken();
   const { toast } = useToast();
+
+  const resetForm = () => {
+    setName(""); setEmail(""); setPhone(""); setCpf(""); setRg("");
+    setAddressZip(""); setAddressStreet(""); setAddressNumber(""); setAddressComplement("");
+    setAddressNeighborhood(""); setAddressCity(""); setAddressState("");
+    setBillingModel("sessao_individual"); setSessionValue(""); setBillingTiming("depois_da_sessao");
+    setBillingDayOfMonth(""); setClinicalNotes(""); setSelectedTemplateIds([]);
+  };
+
+  const handleCepLookup = async (cep: string) => {
+    const cleaned = cep.replace(/\D/g, "");
+    if (cleaned.length !== 8) return;
+    try {
+      const res = await fetch(`https://viacep.com.br/ws/${cleaned}/json/`);
+      const data = await res.json();
+      if (!data.erro) {
+        setAddressStreet(data.logradouro ?? addressStreet);
+        setAddressNeighborhood(data.bairro ?? addressNeighborhood);
+        setAddressCity(data.localidade ?? addressCity);
+        setAddressState(data.uf ?? addressState);
+      }
+    } catch {}
+  };
+
+  const handleGenerateLink = async (client: any) => {
+    if (!workspace) return;
+    try {
+      const result = await createToken.mutateAsync({ workspace_id: workspace.id, client_id: client.id });
+      const url = `${window.location.origin}/cadastro/${result.token}`;
+      await navigator.clipboard.writeText(url);
+      toast({ title: "Link copiado!", description: "Link de cadastro copiado para a área de transferência." });
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Erro", description: e.message });
+    }
+  };
 
   const filtered = (clients ?? []).filter((c) =>
     c.full_name.toLowerCase().includes(search.toLowerCase()) ||
@@ -104,6 +151,15 @@ const ClientesTab = () => {
         session_value_cents: sessionValue ? Math.round(parseFloat(sessionValue) * 100) : undefined,
         billing_timing: billingTiming,
         billing_day_of_month: billingModel === "pacote_mensal" && billingDayOfMonth ? parseInt(billingDayOfMonth) : undefined,
+        cpf: cpf || undefined,
+        rg: rg || undefined,
+        address_zip: addressZip || undefined,
+        address_street: addressStreet || undefined,
+        address_number: addressNumber || undefined,
+        address_complement: addressComplement || undefined,
+        address_neighborhood: addressNeighborhood || undefined,
+        address_city: addressCity || undefined,
+        address_state: addressState || undefined,
       });
       // Save template associations
       for (const tplId of selectedTemplateIds) {
@@ -141,8 +197,7 @@ const ClientesTab = () => {
         title: "Paciente adicionado!",
         description: chargeCreated ? "Primeira cobrança gerada automaticamente." : undefined,
       });
-      setName(""); setEmail(""); setPhone(""); setSelectedTemplateIds([]);
-      setBillingModel("sessao_individual"); setSessionValue(""); setBillingTiming("depois_da_sessao"); setBillingDayOfMonth(""); setClinicalNotes("");
+      resetForm();
       setOpen(false);
     } catch (e: any) {
       toast({ variant: "destructive", title: "Erro", description: e.message });
@@ -163,6 +218,15 @@ const ClientesTab = () => {
         session_value_cents: sessionValue ? Math.round(parseFloat(sessionValue) * 100) : null,
         billing_timing: billingTiming,
         billing_day_of_month: billingModel === "pacote_mensal" && billingDayOfMonth ? parseInt(billingDayOfMonth) : null,
+        cpf: cpf || null,
+        rg: rg || null,
+        address_zip: addressZip || null,
+        address_street: addressStreet || null,
+        address_number: addressNumber || null,
+        address_complement: addressComplement || null,
+        address_neighborhood: addressNeighborhood || null,
+        address_city: addressCity || null,
+        address_state: addressState || null,
       });
       // Sync template associations: delete all, re-insert selected
       await supabase
@@ -202,6 +266,15 @@ const ClientesTab = () => {
     setName(client.full_name);
     setEmail(client.email ?? "");
     setPhone(client.phone ?? "");
+    setCpf(client.cpf ?? "");
+    setRg(client.rg ?? "");
+    setAddressZip(client.address_zip ?? "");
+    setAddressStreet(client.address_street ?? "");
+    setAddressNumber(client.address_number ?? "");
+    setAddressComplement(client.address_complement ?? "");
+    setAddressNeighborhood(client.address_neighborhood ?? "");
+    setAddressCity(client.address_city ?? "");
+    setAddressState(client.address_state ?? "");
     setBillingModel(client.billing_model ?? "sessao_individual");
     setSessionValue(client.session_value_cents ? (client.session_value_cents / 100).toFixed(2) : "");
     setBillingTiming(client.billing_timing ?? "depois_da_sessao");
@@ -266,13 +339,25 @@ const ClientesTab = () => {
                 <Label>Nome Completo *</Label>
                 <Input placeholder="João da Silva" value={name} onChange={(e) => setName(e.target.value)} />
               </div>
-              <div className="space-y-2">
-                <Label>WhatsApp *</Label>
-                <Input placeholder="(11) 98765-4321" value={phone} onChange={(e) => setPhone(e.target.value)} />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>WhatsApp</Label>
+                  <Input placeholder="(11) 98765-4321" value={phone} onChange={(e) => setPhone(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Email</Label>
+                  <Input type="email" placeholder="joao@exemplo.com" value={email} onChange={(e) => setEmail(e.target.value)} />
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label>Email</Label>
-                <Input type="email" placeholder="joao@exemplo.com" value={email} onChange={(e) => setEmail(e.target.value)} />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>CPF</Label>
+                  <Input placeholder="000.000.000-00" value={cpf} onChange={(e) => setCpf(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label>RG</Label>
+                  <Input placeholder="00.000.000-0" value={rg} onChange={(e) => setRg(e.target.value)} />
+                </div>
               </div>
               <div className="space-y-2">
                 <Label>Modelo de Cobrança *</Label>
@@ -356,12 +441,20 @@ const ClientesTab = () => {
         </div>
         <div className="divide-y divide-border">
           {filtered.map((client) => (
-            <div key={client.id} className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_1fr_80px] gap-2 sm:gap-4 px-5 py-4 items-center hover:bg-muted/30 transition-colors">
+            <div key={client.id} className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_1fr_110px] gap-2 sm:gap-4 px-5 py-4 items-center hover:bg-muted/30 transition-colors">
               <div className="flex items-center gap-3 cursor-pointer" onClick={() => openDetail(client)}>
                 <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold text-sm shrink-0">
                   {client.full_name[0]}
                 </div>
-                <span className="font-medium text-foreground hover:text-primary transition-colors">{client.full_name}</span>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-foreground hover:text-primary transition-colors">{client.full_name}</span>
+                    {(client.cpf || client.address_city) && (
+                      <span title="Cadastro completo"><CheckCircle className="h-3.5 w-3.5 text-primary shrink-0" /></span>
+                    )}
+                  </div>
+                  {client.cpf && <span className="text-xs text-muted-foreground">CPF: {client.cpf}</span>}
+                </div>
               </div>
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Mail className="h-3.5 w-3.5 shrink-0 hidden sm:block" />
@@ -385,6 +478,14 @@ const ClientesTab = () => {
                   title="Editar"
                 >
                   <Pencil className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => handleGenerateLink(client)}
+                  disabled={createToken.isPending}
+                  className="h-8 w-8 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-primary"
+                  title="Gerar link de cadastro"
+                >
+                  <Link className="h-4 w-4" />
                 </button>
                 <button
                   onClick={() => { setSelectedClient(client); setDeleteOpen(true); }}
@@ -419,13 +520,59 @@ const ClientesTab = () => {
               <Label>Nome Completo *</Label>
               <Input value={name} onChange={(e) => setName(e.target.value)} />
             </div>
-            <div className="space-y-2">
-              <Label>WhatsApp *</Label>
-              <Input value={phone} onChange={(e) => setPhone(e.target.value)} />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>WhatsApp</Label>
+                <Input value={phone} onChange={(e) => setPhone(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label>Email</Label>
+                <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>CPF</Label>
+                <Input placeholder="000.000.000-00" value={cpf} onChange={(e) => setCpf(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label>RG</Label>
+                <Input placeholder="00.000.000-0" value={rg} onChange={(e) => setRg(e.target.value)} />
+              </div>
             </div>
             <div className="space-y-2">
-              <Label>Email</Label>
-              <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+              <Label>CEP</Label>
+              <Input placeholder="00000-000" value={addressZip} onChange={(e) => setAddressZip(e.target.value)} onBlur={(e) => handleCepLookup(e.target.value)} />
+            </div>
+            <div className="grid grid-cols-[1fr_100px] gap-4">
+              <div className="space-y-2">
+                <Label>Rua</Label>
+                <Input placeholder="Rua das Flores" value={addressStreet} onChange={(e) => setAddressStreet(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label>Número</Label>
+                <Input placeholder="123" value={addressNumber} onChange={(e) => setAddressNumber(e.target.value)} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Complemento</Label>
+                <Input placeholder="Apto 12" value={addressComplement} onChange={(e) => setAddressComplement(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label>Bairro</Label>
+                <Input placeholder="Centro" value={addressNeighborhood} onChange={(e) => setAddressNeighborhood(e.target.value)} />
+              </div>
+            </div>
+            <div className="grid grid-cols-[1fr_70px] gap-4">
+              <div className="space-y-2">
+                <Label>Cidade</Label>
+                <Input placeholder="São Paulo" value={addressCity} onChange={(e) => setAddressCity(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label>Estado</Label>
+                <Input placeholder="SP" maxLength={2} value={addressState} onChange={(e) => setAddressState(e.target.value)} />
+              </div>
             </div>
             <div className="space-y-2">
               <Label>Modelo de Cobrança *</Label>
