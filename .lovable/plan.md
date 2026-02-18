@@ -1,32 +1,47 @@
 
-## Problema
+## Reformulação da Tela de Anotações do Cliente
 
-O link de cadastro do cliente está sendo gerado com `window.location.origin`, que aponta para a URL de **preview do Lovable** (protegida por autenticação da plataforma). Quando o cliente abre o link, encontra o popup "Request access" do Lovable, bloqueando o acesso ao formulário.
+### Problema atual
+O formulário para adicionar uma nova observação está escondido dentro de um dialog (modal). O usuário precisa clicar em "Nova observação" para abrir o modal, digitar, salvar e fechar. Isso cria fricção e não permite ver a lista ao mesmo tempo.
 
-## Solução
+### O que será feito
 
-Substituir `window.location.origin` pela URL publicada do projeto (`https://schedulife-smart.lovable.app`) ao montar o link de cadastro do cliente.
+**1. Remover o dialog de nova observação**
 
-## Arquivo a modificar
+O textarea e o botão "Adicionar observação" serão movidos para fora do modal e exibidos diretamente na tela, acima da lista de registros — sempre visíveis.
 
-**`src/components/dashboard/ClientesTab.tsx`** — linha 128:
+**2. Comportamento após salvar**
 
+Ao clicar em "Adicionar observação":
+- O texto do campo é limpo automaticamente (`setSessionNotes("")`)
+- O filtro de data é limpo (`setDateFilter("")`), fazendo a lista mostrar **todos** os registros
+- A nova observação aparece no topo da lista imediatamente (já é o comportamento atual via TanStack Query)
+
+**3. Edição de observação existente**
+
+Ao clicar no lápis (editar) em uma observação existente, o texto carrega no textarea inline (em vez do modal). O botão muda para "Salvar alterações" e aparece um botão "Cancelar" ao lado. Após salvar, o campo volta ao estado de "nova observação" e o filtro é limpo.
+
+**4. Layout da tela reorganizado**
+
+```text
+[ Filtro de data ]  [ Limpar ]          ← barra de filtro (Limpar só aparece se data selecionada)
+
+[ Textarea: "Registre suas observações..." ]
+[ Adicionar observação ]                ← botão abaixo do textarea
+
+────────────────────────────────────────
+  Lista de observações existentes
+  (mostra todas, ou filtradas por data)
+────────────────────────────────────────
 ```
-// Antes (problemático):
-const url = `${window.location.origin}/cadastro/${result.token}`;
 
-// Depois (correto):
-const APP_URL = import.meta.env.VITE_APP_URL || "https://schedulife-smart.lovable.app";
-const url = `${APP_URL}/cadastro/${result.token}`;
-```
+### Arquivo a modificar
 
-## Por que esta abordagem?
+**`src/components/dashboard/ClientesTab.tsx`** — componente `ClientDetail` (linhas 679-846):
 
-- A URL de preview (`id-preview--...lovable.app`) é protegida pela plataforma Lovable e exige autenticação.
-- A URL publicada (`schedulife-smart.lovable.app`) é pública e acessível por qualquer pessoa sem login.
-- Usar uma variável de ambiente `VITE_APP_URL` com fallback para a URL publicada é a abordagem mais robusta: permite sobrescrever se o domínio mudar, e funciona tanto em preview (para testes internos) quanto em produção.
-
-## Impacto
-
-- Mudança mínima (uma linha).
-- O link gerado passará a apontar para o domínio público do app, permitindo que o cliente acesse o formulário sem nenhuma barreira.
+- Remover o `<Dialog>` de adicionar/editar observação
+- Mover o `<Textarea>` e o botão para inline na tela (após a barra de filtro)
+- Atualizar `handleAddNote` para também limpar `dateFilter` após salvar
+- Atualizar `handleUpdateNote` para limpar o campo e `dateFilter` após salvar
+- Ao clicar em editar (lápis), preencher o textarea inline e mostrar botão "Cancelar edição"
+- Manter o dialog apenas se o usuário quiser, caso contrário removê-lo completamente
