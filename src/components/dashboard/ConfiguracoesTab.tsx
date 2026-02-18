@@ -506,7 +506,7 @@ const ConfiguracoesTab = () => {
                   </div>
                 </div>
             }
-              <Button variant="hero" size="sm" className="w-full">Assinar agora — R$ 69/mês</Button>
+              <Button variant="hero" size="sm" className="w-full">Assinar agora — R$ 39/mês</Button>
             </div>
           </div>
         }
