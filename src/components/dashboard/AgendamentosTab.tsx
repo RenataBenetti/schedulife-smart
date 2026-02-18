@@ -13,9 +13,10 @@ import {
   AlertCircle,
   Eye,
   Loader2,
-  User,
   CalendarDays,
   Timer,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import { useAppointments, useClients } from "@/hooks/use-data";
 import { useWorkspace } from "@/hooks/use-workspace";
@@ -30,6 +31,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Select,
   SelectContent,
@@ -59,6 +70,18 @@ const AgendamentosTab = () => {
   const [saving, setSaving] = useState(false);
   const [detailApt, setDetailApt] = useState<any>(null);
   const [updatingStatus, setUpdatingStatus] = useState(false);
+
+  // Edit state
+  const [editApt, setEditApt] = useState<any>(null);
+  const [editClientId, setEditClientId] = useState("");
+  const [editDate, setEditDate] = useState("");
+  const [editTime, setEditTime] = useState("");
+  const [editDuration, setEditDuration] = useState("50");
+  const [editSaving, setEditSaving] = useState(false);
+
+  // Delete state
+  const [deleteApt, setDeleteApt] = useState<any>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const { data: workspace } = useWorkspace();
   const { data: appointments, isLoading } = useAppointments(workspace?.id);
@@ -94,7 +117,6 @@ const AgendamentosTab = () => {
       const { error } = await supabase.from("appointments").insert(rows);
       if (error) throw error;
 
-      // Auto-create payment links for "sessao_individual" clients
       const client = (clients ?? []).find((c) => c.id === clientId);
       let chargesCreated = 0;
       const isSessionBilling = client?.billing_model === "sessao_individual";
@@ -123,9 +145,7 @@ const AgendamentosTab = () => {
       const base = totalWeeks > 1 ? `${totalWeeks} agendamentos criados!` : "Agendamento criado!";
       toast({
         title: base,
-        description: chargesCreated > 0
-          ? `${chargesCreated} cobrança(s) gerada(s) automaticamente.`
-          : undefined,
+        description: chargesCreated > 0 ? `${chargesCreated} cobrança(s) gerada(s) automaticamente.` : undefined,
       });
       setClientId(""); setDate(""); setTime(""); setDuration("50");
       setRecurring(false); setWeeks("4");
@@ -134,6 +154,57 @@ const AgendamentosTab = () => {
       toast({ variant: "destructive", title: "Erro", description: e.message });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const openEdit = (apt: any) => {
+    const durationMin = Math.round(
+      (new Date(apt.ends_at).getTime() - new Date(apt.starts_at).getTime()) / 60000
+    );
+    setEditApt(apt);
+    setEditClientId(apt.client_id);
+    setEditDate(format(new Date(apt.starts_at), "yyyy-MM-dd"));
+    setEditTime(format(new Date(apt.starts_at), "HH:mm"));
+    setEditDuration(String(durationMin));
+  };
+
+  const handleEdit = async () => {
+    if (!editApt || !editClientId || !editDate || !editTime) return;
+    setEditSaving(true);
+    try {
+      const durationMin = parseInt(editDuration) || 50;
+      const startsAt = new Date(`${editDate}T${editTime}`).toISOString();
+      const endsAt = new Date(new Date(`${editDate}T${editTime}`).getTime() + durationMin * 60000).toISOString();
+
+      const { error } = await supabase
+        .from("appointments")
+        .update({ client_id: editClientId, starts_at: startsAt, ends_at: endsAt })
+        .eq("id", editApt.id);
+      if (error) throw error;
+
+      queryClient.invalidateQueries({ queryKey: ["appointments", workspace?.id] });
+      toast({ title: "Agendamento atualizado!" });
+      setEditApt(null);
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Erro", description: e.message });
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteApt) return;
+    setDeleting(true);
+    try {
+      const { error } = await supabase.from("appointments").delete().eq("id", deleteApt.id);
+      if (error) throw error;
+      queryClient.invalidateQueries({ queryKey: ["appointments", workspace?.id] });
+      toast({ title: "Agendamento excluído!" });
+      setDeleteApt(null);
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Erro", description: e.message });
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -189,22 +260,11 @@ const AgendamentosTab = () => {
               </div>
               <div className="space-y-2">
                 <Label>Tempo da sessão (minutos)</Label>
-                <Input
-                  type="number"
-                  min="10"
-                  max="240"
-                  value={duration}
-                  onChange={(e) => setDuration(e.target.value)}
-                  placeholder="50"
-                />
+                <Input type="number" min="10" max="240" value={duration} onChange={(e) => setDuration(e.target.value)} placeholder="50" />
               </div>
               <div className="space-y-3 rounded-lg border border-border p-4">
                 <div className="flex items-center gap-3">
-                  <Checkbox
-                    id="recurring"
-                    checked={recurring}
-                    onCheckedChange={(checked) => setRecurring(checked === true)}
-                  />
+                  <Checkbox id="recurring" checked={recurring} onCheckedChange={(checked) => setRecurring(checked === true)} />
                   <Label htmlFor="recurring" className="cursor-pointer text-sm font-medium">
                     Gerar recorrência semanal (mesmo dia/hora)
                   </Label>
@@ -212,14 +272,7 @@ const AgendamentosTab = () => {
                 {recurring && (
                   <div className="space-y-2 pl-7">
                     <Label className="text-xs text-muted-foreground">Quantas semanas?</Label>
-                    <Input
-                      type="number"
-                      min="2"
-                      max="52"
-                      value={weeks}
-                      onChange={(e) => setWeeks(e.target.value)}
-                      className="w-24"
-                    />
+                    <Input type="number" min="2" max="52" value={weeks} onChange={(e) => setWeeks(e.target.value)} className="w-24" />
                   </div>
                 )}
               </div>
@@ -232,7 +285,7 @@ const AgendamentosTab = () => {
       </div>
 
       <div className="rounded-xl border border-border bg-card shadow-soft overflow-hidden">
-        <div className="hidden sm:grid grid-cols-[1fr_100px_80px_80px_120px_40px] gap-4 px-5 py-3 border-b border-border bg-muted/50 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+        <div className="hidden sm:grid grid-cols-[1fr_100px_80px_80px_120px_96px] gap-4 px-5 py-3 border-b border-border bg-muted/50 text-xs font-medium text-muted-foreground uppercase tracking-wider">
           <span>Cliente</span>
           <span>Data</span>
           <span>Hora</span>
@@ -247,7 +300,7 @@ const AgendamentosTab = () => {
             const StatusIcon = s.icon;
             const durationMin = Math.round((new Date(apt.ends_at).getTime() - new Date(apt.starts_at).getTime()) / 60000);
             return (
-              <div key={apt.id} className="grid grid-cols-1 sm:grid-cols-[1fr_100px_80px_80px_120px_40px] gap-2 sm:gap-4 px-5 py-4 items-center hover:bg-muted/30 transition-colors">
+              <div key={apt.id} className="grid grid-cols-1 sm:grid-cols-[1fr_100px_80px_80px_120px_96px] gap-2 sm:gap-4 px-5 py-4 items-center hover:bg-muted/30 transition-colors">
                 <div className="flex items-center gap-3">
                   <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold text-sm shrink-0">
                     {clientName[0]}
@@ -261,12 +314,29 @@ const AgendamentosTab = () => {
                   <StatusIcon className="h-3.5 w-3.5" />
                   {s.label}
                 </span>
-                <button
-                  onClick={() => setDetailApt(apt)}
-                  className="h-8 w-8 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-primary"
-                >
-                  <Eye className="h-4 w-4" />
-                </button>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setDetailApt(apt)}
+                    className="h-8 w-8 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-primary"
+                    title="Ver detalhes"
+                  >
+                    <Eye className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={() => openEdit(apt)}
+                    className="h-8 w-8 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-primary"
+                    title="Editar"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={() => setDeleteApt(apt)}
+                    className="h-8 w-8 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-destructive"
+                    title="Excluir"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
             );
           })}
@@ -281,6 +351,7 @@ const AgendamentosTab = () => {
           </p>
         </div>
       )}
+
       {/* Detail Dialog */}
       <Dialog open={!!detailApt} onOpenChange={(open) => !open && setDetailApt(null)}>
         <DialogContent>
@@ -346,11 +417,7 @@ const AgendamentosTab = () => {
 
                 <div className="space-y-2">
                   <Label className="text-xs text-muted-foreground uppercase tracking-wider">Alterar status</Label>
-                  <Select
-                    value={detailApt.status}
-                    onValueChange={handleStatusChange}
-                    disabled={updatingStatus}
-                  >
+                  <Select value={detailApt.status} onValueChange={handleStatusChange} disabled={updatingStatus}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
@@ -378,6 +445,69 @@ const AgendamentosTab = () => {
           })()}
         </DialogContent>
       </Dialog>
+
+      {/* Edit Dialog */}
+      <Dialog open={!!editApt} onOpenChange={(open) => !open && setEditApt(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar agendamento</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <div className="space-y-2">
+              <Label>Cliente *</Label>
+              <Select value={editClientId} onValueChange={setEditClientId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o cliente" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(clients ?? []).map((c) => (
+                    <SelectItem key={c.id} value={c.id}>{c.full_name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Data *</Label>
+                <Input type="date" value={editDate} onChange={(e) => setEditDate(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label>Horário *</Label>
+                <Input type="time" value={editTime} onChange={(e) => setEditTime(e.target.value)} />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Tempo da sessão (minutos)</Label>
+              <Input type="number" min="10" max="240" value={editDuration} onChange={(e) => setEditDuration(e.target.value)} placeholder="50" />
+            </div>
+            <Button variant="hero" onClick={handleEdit} disabled={!editClientId || !editDate || !editTime || editSaving} className="w-full">
+              {editSaving ? <><Loader2 className="h-4 w-4 animate-spin" /> Salvando...</> : "Salvar alterações"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation */}
+      <AlertDialog open={!!deleteApt} onOpenChange={(open) => !open && setDeleteApt(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir agendamento?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteApt && `Sessão de ${(deleteApt.clients as any)?.full_name ?? "—"} em ${format(new Date(deleteApt.starts_at), "dd/MM/yyyy")} às ${format(new Date(deleteApt.starts_at), "HH:mm")} será excluída permanentemente.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? <><Loader2 className="h-4 w-4 animate-spin" /> Excluindo...</> : "Excluir"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
