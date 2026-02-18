@@ -677,7 +677,6 @@ interface ClientDetailProps {
 }
 
 const ClientDetail = ({ client, workspaceId, onBack }: ClientDetailProps) => {
-  const [noteOpen, setNoteOpen] = useState(false);
   const [editingSession, setEditingSession] = useState<any>(null);
   const [sessionNotes, setSessionNotes] = useState("");
   const [dateFilter, setDateFilter] = useState("");
@@ -702,7 +701,7 @@ const ClientDetail = ({ client, workspaceId, onBack }: ClientDetailProps) => {
       });
       toast({ title: "Observação adicionada!" });
       setSessionNotes("");
-      setNoteOpen(false);
+      setDateFilter("");
     } catch (e: any) {
       toast({ variant: "destructive", title: "Erro", description: e.message });
     }
@@ -720,9 +719,15 @@ const ClientDetail = ({ client, workspaceId, onBack }: ClientDetailProps) => {
       toast({ title: "Observação atualizada!" });
       setSessionNotes("");
       setEditingSession(null);
+      setDateFilter("");
     } catch (e: any) {
       toast({ variant: "destructive", title: "Erro", description: e.message });
     }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingSession(null);
+    setSessionNotes("");
   };
 
   return (
@@ -743,30 +748,51 @@ const ClientDetail = ({ client, workspaceId, onBack }: ClientDetailProps) => {
         </div>
       </div>
 
-      {/* Actions bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <CalendarDays className="h-4 w-4 text-muted-foreground" />
-          <Input
-            type="date"
-            value={dateFilter}
-            onChange={(e) => setDateFilter(e.target.value)}
-            className="w-44"
-            placeholder="Filtrar por data"
-          />
-          {dateFilter && (
-            <Button variant="ghost" size="sm" onClick={() => setDateFilter("")}>
-              Limpar
+      {/* Filter bar */}
+      <div className="flex items-center gap-3">
+        <CalendarDays className="h-4 w-4 text-muted-foreground" />
+        <Input
+          type="date"
+          value={dateFilter}
+          onChange={(e) => setDateFilter(e.target.value)}
+          className="w-44"
+        />
+        {dateFilter && (
+          <Button variant="ghost" size="sm" onClick={() => setDateFilter("")}>
+            Limpar
+          </Button>
+        )}
+      </div>
+
+      {/* Inline note form */}
+      <div className="rounded-xl border border-border bg-card p-4 shadow-soft space-y-3">
+        {editingSession && (
+          <p className="text-xs text-muted-foreground font-medium">
+            Editando observação de {format(new Date(editingSession.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+          </p>
+        )}
+        <Textarea
+          placeholder="Registre suas observações..."
+          value={sessionNotes}
+          onChange={(e) => setSessionNotes(e.target.value)}
+          rows={4}
+        />
+        <div className="flex items-center gap-2">
+          <Button
+            variant="hero"
+            size="sm"
+            onClick={editingSession ? handleUpdateNote : handleAddNote}
+            disabled={!sessionNotes.trim() || addSession.isPending || updateSession.isPending}
+          >
+            {(addSession.isPending || updateSession.isPending) ? "Salvando..." : editingSession ? "Salvar alterações" : "Adicionar observação"}
+          </Button>
+          {editingSession && (
+            <Button variant="outline" size="sm" onClick={handleCancelEdit}>
+              Cancelar
             </Button>
           )}
         </div>
-        <Button variant="hero" size="sm" onClick={() => { setSessionNotes(""); setEditingSession(null); setNoteOpen(true); }}>
-          <Plus className="h-4 w-4" />
-          Nova observação
-        </Button>
       </div>
-
-
 
       {/* Session notes list */}
       {isLoading ? (
@@ -798,7 +824,6 @@ const ClientDetail = ({ client, workspaceId, onBack }: ClientDetailProps) => {
                   onClick={() => {
                     setEditingSession(session);
                     setSessionNotes(session.session_notes ?? "");
-                    setNoteOpen(true);
                   }}
                   className="h-7 w-7 rounded-md flex items-center justify-center text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-muted transition-all"
                   title="Editar"
@@ -813,34 +838,6 @@ const ClientDetail = ({ client, workspaceId, onBack }: ClientDetailProps) => {
           ))}
         </div>
       )}
-
-      {/* Add/Edit note dialog */}
-      <Dialog open={noteOpen} onOpenChange={setNoteOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{editingSession ? "Editar observação" : "Nova observação"}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 pt-2">
-            <div className="space-y-2">
-              <Label>Observações da sessão</Label>
-              <Textarea
-                placeholder="Registre aqui suas observações sobre a sessão..."
-                value={sessionNotes}
-                onChange={(e) => setSessionNotes(e.target.value)}
-                rows={6}
-              />
-            </div>
-            <Button
-              variant="hero"
-              onClick={editingSession ? handleUpdateNote : handleAddNote}
-              disabled={!sessionNotes.trim() || addSession.isPending || updateSession.isPending}
-              className="w-full"
-            >
-              {(addSession.isPending || updateSession.isPending) ? "Salvando..." : editingSession ? "Salvar alterações" : "Adicionar observação"}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };
