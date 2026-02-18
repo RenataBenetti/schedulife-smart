@@ -21,7 +21,7 @@ const faqs = [
   },
   {
     q: "Posso cancelar a qualquer momento?",
-    a: "Sim! Não há fidelidade. Você pode cancelar a assinatura quando quiser e terá acesso até o fim do período pago.",
+    a: "Depende do plano escolhido. No Plano Mensal, não há fidelidade — você pode cancelar quando quiser e terá acesso até o fim do período pago. No Plano Anual, o contrato é de 12 meses, mas você economiza R$ 120 ao ano em relação ao mensal.",
   },
   {
     q: "Meus dados estão seguros?",
