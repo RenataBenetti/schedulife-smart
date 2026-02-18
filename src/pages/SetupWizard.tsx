@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+// Input and Label still used in other steps
 import {
   Calendar,
   MessageSquare,
@@ -118,31 +119,44 @@ const SetupWizard = () => {
 const WhatsAppStep = () => (
   <div className="space-y-6">
     <div>
-      <h2 className="text-xl font-bold text-foreground mb-1">Conectar WhatsApp Cloud API</h2>
+      <h2 className="text-xl font-bold text-foreground mb-1">Conectar WhatsApp via QR Code</h2>
       <p className="text-sm text-muted-foreground">
-        Informe os dados da sua conta WhatsApp Business para habilitar mensagens automáticas.
+        Use a Evolution API para conectar seu WhatsApp escaneando um QR Code — sem precisar de conta Business na Meta.
       </p>
     </div>
-    <div className="space-y-4">
-      <div className="space-y-2">
-        <Label>Business ID</Label>
-        <Input placeholder="Ex: 123456789012345" />
+
+    <div className="space-y-3">
+      <div className="flex items-start gap-3 rounded-lg border border-border bg-muted/30 p-4">
+        <div className="h-7 w-7 rounded-full gradient-primary flex items-center justify-center shrink-0 mt-0.5">
+          <span className="text-xs font-bold text-primary-foreground">1</span>
+        </div>
+        <div>
+          <p className="text-sm font-medium text-foreground">Tenha um servidor Evolution API</p>
+          <p className="text-xs text-muted-foreground mt-0.5">Você precisará da URL do servidor, da API Key e de um nome para a instância.</p>
+        </div>
       </div>
-      <div className="space-y-2">
-        <Label>Phone Number ID</Label>
-        <Input placeholder="Ex: 123456789012345" />
+      <div className="flex items-start gap-3 rounded-lg border border-border bg-muted/30 p-4">
+        <div className="h-7 w-7 rounded-full gradient-primary flex items-center justify-center shrink-0 mt-0.5">
+          <span className="text-xs font-bold text-primary-foreground">2</span>
+        </div>
+        <div>
+          <p className="text-sm font-medium text-foreground">Configure em Integrações</p>
+          <p className="text-xs text-muted-foreground mt-0.5">Após concluir este setup, vá em <strong>Configurações → Integrações</strong> para inserir os dados e escanear o QR Code.</p>
+        </div>
       </div>
-      <div className="space-y-2">
-        <Label>Access Token</Label>
-        <Input type="password" placeholder="Token de acesso permanente" />
+      <div className="flex items-start gap-3 rounded-lg border border-border bg-muted/30 p-4">
+        <div className="h-7 w-7 rounded-full gradient-primary flex items-center justify-center shrink-0 mt-0.5">
+          <span className="text-xs font-bold text-primary-foreground">3</span>
+        </div>
+        <div>
+          <p className="text-sm font-medium text-foreground">Escaneie com seu celular</p>
+          <p className="text-xs text-muted-foreground mt-0.5">Abra o WhatsApp no celular, acesse Aparelhos conectados e escaneie o QR Code gerado.</p>
+        </div>
       </div>
-      <Button variant="outline" size="sm">
-        Validar conexão
-      </Button>
     </div>
-    <div className="rounded-lg bg-muted/50 p-4 text-sm text-muted-foreground">
-      <strong className="text-foreground">Nota:</strong> O custo das mensagens enviadas pelo WhatsApp é pago
-      diretamente por você à Meta. O Agendix não cobra taxas adicionais pelo envio.
+
+    <div className="rounded-lg bg-accent/20 border border-accent/30 p-4 text-sm text-foreground">
+      <strong>💡 Dica:</strong> Recomendamos usar um número de telefone dedicado para o WhatsApp do consultório, separado do seu número pessoal.
     </div>
   </div>
 );
