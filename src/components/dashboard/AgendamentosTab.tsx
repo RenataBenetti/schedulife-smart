@@ -18,6 +18,7 @@ import {
   Pencil,
   Trash2,
 } from "lucide-react";
+import { ReportButton } from "@/components/dashboard/ReportModal";
 import { useAppointments, useClients } from "@/hooks/use-data";
 import { useWorkspace } from "@/hooks/use-workspace";
 import { useToast } from "@/hooks/use-toast";
@@ -223,13 +224,15 @@ const AgendamentosTab = () => {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input placeholder="Buscar agendamento..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
         </div>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button variant="hero" size="sm">
-              <Plus className="h-4 w-4" />
-              Novo agendamento
-            </Button>
-          </DialogTrigger>
+        <div className="flex items-center gap-2">
+          <ReportButton type="appointments" data={appointments ?? []} />
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+              <Button variant="hero" size="sm">
+                <Plus className="h-4 w-4" />
+                Novo agendamento
+              </Button>
+            </DialogTrigger>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Novo agendamento</DialogTitle>
@@ -280,8 +283,9 @@ const AgendamentosTab = () => {
                 {saving ? "Salvando..." : recurring ? `Criar ${Math.max(1, parseInt(weeks) || 1)} agendamentos` : "Criar agendamento"}
               </Button>
             </div>
-          </DialogContent>
-        </Dialog>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       <div className="rounded-xl border border-border bg-card shadow-soft overflow-hidden">
