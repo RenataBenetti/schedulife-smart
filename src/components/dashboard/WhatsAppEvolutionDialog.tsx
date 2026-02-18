@@ -71,7 +71,11 @@ export function WhatsAppEvolutionDialog({ open, onOpenChange, workspaceId, exist
         evolution_instance: instance,
       },
     });
-    if (error) throw new Error(error.message);
+    if (error) {
+      // When the function returns 500, data may still contain the parsed body
+      const message = (data as any)?.error || error.message;
+      throw new Error(message);
+    }
     if (data?.error) throw new Error(data.error);
     return data;
   };
