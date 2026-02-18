@@ -13,6 +13,7 @@ import Dashboard from "./pages/Dashboard";
 import SetupWizard from "./pages/SetupWizard";
 import NotFound from "./pages/NotFound";
 import GoogleCalendarCallback from "./pages/GoogleCalendarCallback";
+import ClientRegistration from "./pages/ClientRegistration";
 
 const queryClient = new QueryClient();
 
@@ -28,6 +29,7 @@ const App = () => (
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
             <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/cadastro/:token" element={<ClientRegistration />} />
             <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
             <Route path="/setup" element={<ProtectedRoute><SetupWizard /></ProtectedRoute>} />
             <Route path="/auth/google-calendar/callback" element={<ProtectedRoute><GoogleCalendarCallback /></ProtectedRoute>} />

@@ -114,45 +114,117 @@ export type Database = {
           },
         ]
       }
+      client_registration_tokens: {
+        Row: {
+          client_id: string
+          completed: boolean
+          created_at: string
+          expires_at: string
+          id: string
+          token: string
+          workspace_id: string
+        }
+        Insert: {
+          client_id: string
+          completed?: boolean
+          created_at?: string
+          expires_at?: string
+          id?: string
+          token?: string
+          workspace_id: string
+        }
+        Update: {
+          client_id?: string
+          completed?: boolean
+          created_at?: string
+          expires_at?: string
+          id?: string
+          token?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_registration_tokens_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_registration_tokens_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clients: {
         Row: {
+          address_city: string | null
+          address_complement: string | null
+          address_neighborhood: string | null
+          address_number: string | null
+          address_state: string | null
+          address_street: string | null
+          address_zip: string | null
           billing_day_of_month: number | null
           billing_model: string | null
           billing_timing: string | null
+          cpf: string | null
           created_at: string
           email: string | null
           full_name: string
           id: string
           notes: string | null
           phone: string | null
+          rg: string | null
           session_value_cents: number | null
           updated_at: string
           workspace_id: string
         }
         Insert: {
+          address_city?: string | null
+          address_complement?: string | null
+          address_neighborhood?: string | null
+          address_number?: string | null
+          address_state?: string | null
+          address_street?: string | null
+          address_zip?: string | null
           billing_day_of_month?: number | null
           billing_model?: string | null
           billing_timing?: string | null
+          cpf?: string | null
           created_at?: string
           email?: string | null
           full_name: string
           id?: string
           notes?: string | null
           phone?: string | null
+          rg?: string | null
           session_value_cents?: number | null
           updated_at?: string
           workspace_id: string
         }
         Update: {
+          address_city?: string | null
+          address_complement?: string | null
+          address_neighborhood?: string | null
+          address_number?: string | null
+          address_state?: string | null
+          address_street?: string | null
+          address_zip?: string | null
           billing_day_of_month?: number | null
           billing_model?: string | null
           billing_timing?: string | null
+          cpf?: string | null
           created_at?: string
           email?: string | null
           full_name?: string
           id?: string
           notes?: string | null
           phone?: string | null
+          rg?: string | null
           session_value_cents?: number | null
           updated_at?: string
           workspace_id?: string

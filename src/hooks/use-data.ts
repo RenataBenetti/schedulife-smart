@@ -21,7 +21,7 @@ export const useAddClient = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (client: { workspace_id: string; full_name: string; email?: string; phone?: string; notes?: string; billing_model?: string; session_value_cents?: number | null; billing_timing?: string; billing_day_of_month?: number | null }) => {
+    mutationFn: async (client: { workspace_id: string; full_name: string; email?: string; phone?: string; notes?: string; billing_model?: string; session_value_cents?: number | null; billing_timing?: string; billing_day_of_month?: number | null; cpf?: string; rg?: string; address_street?: string; address_number?: string; address_complement?: string; address_neighborhood?: string; address_city?: string; address_state?: string; address_zip?: string }) => {
       const { data, error } = await supabase.from("clients").insert(client).select().single();
       if (error) throw error;
       return data;
@@ -35,13 +35,31 @@ export const useAddClient = () => {
 export const useUpdateClient = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, workspace_id, ...updates }: { id: string; workspace_id: string; full_name?: string; email?: string | null; phone?: string | null; notes?: string | null; billing_model?: string; session_value_cents?: number | null; billing_timing?: string; billing_day_of_month?: number | null }) => {
+    mutationFn: async ({ id, workspace_id, ...updates }: { id: string; workspace_id: string; full_name?: string; email?: string | null; phone?: string | null; notes?: string | null; billing_model?: string; session_value_cents?: number | null; billing_timing?: string; billing_day_of_month?: number | null; cpf?: string | null; rg?: string | null; address_street?: string | null; address_number?: string | null; address_complement?: string | null; address_neighborhood?: string | null; address_city?: string | null; address_state?: string | null; address_zip?: string | null }) => {
       const { data, error } = await supabase.from("clients").update(updates).eq("id", id).select().single();
       if (error) throw error;
       return data;
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["clients", data.workspace_id] });
+    },
+  });
+};
+
+export const useCreateRegistrationToken = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ workspace_id, client_id }: { workspace_id: string; client_id: string }) => {
+      const { data, error } = await supabase
+        .from("client_registration_tokens" as any)
+        .insert({ workspace_id, client_id })
+        .select()
+        .single();
+      if (error) throw error;
+      return data as any;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["registration_tokens", variables.workspace_id] });
     },
   });
 };
