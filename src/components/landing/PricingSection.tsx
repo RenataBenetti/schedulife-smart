@@ -6,11 +6,10 @@ import { Check, ArrowRight } from "lucide-react";
 const included = [
 "Confirmação automática via WhatsApp",
 "Agenda integrada com Google Calendar",
-"Cobranças automáticas via Asaas",
+"Cobranças automáticas via link de pagamento",
 "Prontuários e histórico de sessões",
 "Templates de mensagem personalizáveis",
 "Regras de envio inteligentes",
-"Multi-profissional (workspace)",
 "Suporte por email"];
 
 

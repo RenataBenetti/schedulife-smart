@@ -5,7 +5,6 @@ import {
   CreditCard,
   FileText,
   Bell,
-  Users,
   Shield,
   Zap,
 } from "lucide-react";
@@ -16,8 +15,7 @@ const features = [
   { icon: CreditCard, title: "Cobrança via Link", desc: "Links de pagamento com acompanhamento em tempo real." },
   { icon: FileText, title: "Prontuários", desc: "Histórico completo de sessões por cliente." },
   { icon: Bell, title: "Lembretes Inteligentes", desc: "Regras personalizáveis para cada tipo de mensagem." },
-  { icon: Users, title: "Multi-profissional", desc: "Workspaces separados para cada profissional ou clínica." },
-  { icon: Shield, title: "Dados Seguros", desc: "Criptografia e isolamento total entre workspaces." },
+  { icon: Shield, title: "Dados Seguros", desc: "Criptografia e proteção total dos seus dados." },
   { icon: Zap, title: "Setup Rápido", desc: "Wizard guiado para começar em menos de 5 minutos." },
 ];
 
