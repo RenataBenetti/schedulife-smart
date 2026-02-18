@@ -1,5 +1,4 @@
 import { Calendar } from "lucide-react";
-import { Link } from "react-router-dom";
 
 export const FooterSection = () => {
   return (
@@ -13,8 +12,8 @@ export const FooterSection = () => {
             <span className="text-lg font-bold text-background">Agendix</span>
           </div>
           <div className="flex items-center gap-6 text-sm text-background/60">
-            <Link to="/termos" className="hover:text-background transition-colors">Termos de Uso</Link>
-            <Link to="/privacidade" className="hover:text-background transition-colors">Privacidade</Link>
+            <a href="/termos.html" className="hover:text-background transition-colors">Termos de Uso</a>
+            <a href="/privacidade.html" className="hover:text-background transition-colors">Privacidade</a>
             <a href="mailto:contato@agendix.com.br" className="hover:text-background transition-colors">Contato</a>
           </div>
           <p className="text-sm text-background/40">
@@ -25,3 +24,4 @@ export const FooterSection = () => {
     </footer>
   );
 };
+
