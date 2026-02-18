@@ -1,70 +1,36 @@
 
-## Relatório por Período nas Abas Clientes, Agendamentos e Pagamentos
+## Replace Hero Section Dashboard Mock with Real Dashboard UI
 
-### O que será feito
+The user wants to replace the placeholder/mock dashboard preview in the landing page Hero Section with a realistic representation that matches the actual dashboard UI (as shown in the uploaded screenshot).
 
-Um botão com ícone de relatório (`FileBarChart`) será adicionado ao lado do botão principal em cada aba. Ao clicar, abre um modal com:
+### What Needs to Change
 
-1. Seleção de período (data início e data fim)
-2. Resumo dos dados filtrados naquele período
+The current mock in `src/components/landing/HeroSection.tsx` (lines 84–127) is a generic placeholder with colored dots and skeleton cards. It will be replaced with a faithful HTML/CSS recreation of the real dashboard, including:
 
----
+- A sidebar with navigation items (Dashboard, Clientes, Agendamentos, etc.)
+- A header with "Dashboard" title and user avatar
+- 4 stat cards: "Sessões hoje", "Pendentes", "Pagamentos pendentes", "Templates"
+- A "Sessões de hoje" table with 2 appointment rows (ZE at 12:00 and Susane at 15:00), both with "Agendado" badges
 
-### Relatório de cada aba
+### Technical Approach
 
-**Clientes** — Mostra pacientes cadastrados no período:
-- Total de novos pacientes no período
-- Lista com nome, modelo de cobrança e valor da sessão
+No image upload is needed. The dashboard will be built entirely with HTML/Tailwind CSS inside the existing motion container, matching the real dashboard's visual appearance closely. This gives a crisp, scalable, and always-up-to-date preview.
 
-**Agendamentos** — Mostra agendamentos no período:
-- Total de sessões
-- Sessões por status (Confirmado, Concluído, Cancelado, Faltou, etc.)
-- Total de horas atendidas
+### Files to Edit
 
-**Pagamentos** — Mostra cobranças criadas no período:
-- Total recebido no período
-- Total pendente no período
-- Lista resumida com paciente, valor e status
+- **`src/components/landing/HeroSection.tsx`**: Replace the `{/* Dashboard preview mock */}` section (lines 84–127) with a detailed, realistic dashboard UI component using Tailwind classes and lucide icons, mirroring the actual dashboard layout.
 
----
+### Implementation Details
 
-### Arquivos que serão criados/editados
+The new preview will include:
 
-| Arquivo | Ação |
-|---|---|
-| `src/components/dashboard/ReportModal.tsx` | Criar — componente genérico de modal de relatório |
-| `src/components/dashboard/ClientesTab.tsx` | Editar — adicionar botão de relatório |
-| `src/components/dashboard/AgendamentosTab.tsx` | Editar — adicionar botão de relatório |
-| `src/components/dashboard/PagamentosTab.tsx` | Editar — adicionar botão de relatório |
+**Sidebar (left column):**
+- Logo area "Agendix" with calendar icon
+- Nav items: Dashboard (active/highlighted), Clientes, Agendamentos, Mensagens, Pagamentos, Configurações
 
----
+**Main content (right column):**
+- Top header bar: "Dashboard / Visão geral do seu dia" + bell icon + user avatar
+- 4 stat cards in a grid row
+- "Sessões de hoje" card with 2 appointment rows
 
-### Como ficará visualmente
-
-Na barra superior de cada aba, ao lado do botão de ação principal:
-
-```text
-[ 🔍 Buscar... ]                    [ 📊 Relatório ]  [ + Novo ... ]
-```
-
-O modal terá:
-
-```text
-┌─────────────────────────────────────┐
-│  Relatório de Agendamentos          │
-│  Período: [01/02/2026] → [28/02/2026] │
-│─────────────────────────────────────│
-│  📅 Total de sessões: 18            │
-│  ✅ Concluídas: 12                  │
-│  ❌ Canceladas: 2                   │
-│  ⏱ Total de horas: 15h             │
-└─────────────────────────────────────┘
-```
-
----
-
-### Detalhes técnicos
-
-- O `ReportModal` receberá as props: `type` ("clients" | "appointments" | "payments"), `data` (já carregados na aba), e filtrará localmente pelo período selecionado — sem chamadas extras ao banco.
-- Os filtros de data usarão `<Input type="date" />` simples para agilidade, sem necessidade de um datepicker complexo.
-- O período padrão ao abrir será o mês atual (dia 1 até hoje).
+All content will be static/hardcoded demo data matching what the user shared in the screenshot. The whole thing will be wrapped in a `pointer-events-none select-none` container so it's purely decorative and won't interfere with the page.
