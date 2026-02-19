@@ -52,13 +52,13 @@ export const WhatsAppMetaConnect = ({
   useEffect(() => {
     mountedRef.current = true;
 
-    // SDK already initialized from a previous mount
-    if (window.FB && window.__fbReady) {
-      setFbReady(true);
+    // SDK already fully ready from a previous mount
+    if (window.__fbReady && window.FB) {
+      if (mountedRef.current) setFbReady(true);
       return () => { mountedRef.current = false; };
     }
 
-    // MUST define fbAsyncInit BEFORE injecting the script
+    // Define fbAsyncInit BEFORE injecting the script (official FB pattern)
     window.fbAsyncInit = function () {
       if (import.meta.env.DEV) console.log("[FB] init starting");
 
@@ -69,9 +69,14 @@ export const WhatsAppMetaConnect = ({
         version: "v18.0",
       });
 
-      window.__fbReady = true;
-      if (import.meta.env.DEV) console.log("[FB] init done, ready=true");
-      if (mountedRef.current) setFbReady(true);
+      if (import.meta.env.DEV) console.log("[FB] init done, calling getLoginStatus");
+
+      // Use getLoginStatus to confirm SDK is fully operational before enabling login
+      window.FB.getLoginStatus(() => {
+        window.__fbReady = true;
+        if (import.meta.env.DEV) console.log("[FB] getLoginStatus ok, ready=true");
+        if (mountedRef.current) setFbReady(true);
+      });
     };
 
     // Inject SDK script only once
