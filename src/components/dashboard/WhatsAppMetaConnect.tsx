@@ -52,23 +52,31 @@ export const WhatsAppMetaConnect = ({
   useEffect(() => {
     mountedRef.current = true;
 
-    // Already initialized
+    // Already fully ready (getLoginStatus confirmed)
     if (window.__fbReady && window.FB) {
-      setIsFBReady(true);
-      return;
+      if (mountedRef.current) setIsFBReady(true);
+      return () => { mountedRef.current = false; };
     }
 
     // Define fbAsyncInit BEFORE injecting the script (official FB pattern)
     window.fbAsyncInit = function () {
+      if (import.meta.env.DEV) console.log("[FB] init starting");
+
       window.FB.init({
         appId: import.meta.env.VITE_META_APP_ID,
         cookie: true,
         xfbml: false,
         version: "v24.0",
       });
-      window.__fbReady = true;
-      console.log("[FB] SDK fully initialized");
-      if (mountedRef.current) setIsFBReady(true);
+
+      if (import.meta.env.DEV) console.log("[FB] init done, calling getLoginStatus");
+
+      // Confirm init is truly complete before enabling the button
+      window.FB.getLoginStatus(() => {
+        window.__fbReady = true;
+        if (import.meta.env.DEV) console.log("[FB] getLoginStatus ok, ready=true");
+        if (mountedRef.current) setIsFBReady(true);
+      });
     };
 
     // Inject script only once
@@ -78,7 +86,7 @@ export const WhatsAppMetaConnect = ({
       script.src = "https://connect.facebook.net/pt_BR/sdk.js";
       script.async = true;
       document.body.appendChild(script);
-      console.log("[FB] SDK script injected");
+      if (import.meta.env.DEV) console.log("[FB] SDK script injected");
     }
 
     return () => {
@@ -110,7 +118,7 @@ export const WhatsAppMetaConnect = ({
 
   // FB.login must be called synchronously in the click handler — no await before it
   const handleConnect = () => {
-    if (!window.__fbReady || !window.FB) {
+    if (!window.FB || !window.__fbReady || !isFBReady) {
       console.error("[FB] FB not ready yet");
       toast({
         variant: "destructive",
