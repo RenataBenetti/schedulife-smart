@@ -53,11 +53,12 @@ export const WhatsAppMetaConnect = ({
   useEffect(() => {
     mountedRef.current = true;
 
-    const appId = import.meta.env.VITE_META_APP_ID;
+    // Meta App ID is a PUBLIC value — safe to hardcode in frontend code.
+    // It is NOT a secret. Never put private secrets (App Secret) here.
+    const appId = import.meta.env.VITE_META_APP_ID || "1419818939007002";
 
-    // Guard: if appId is missing or literally "undefined", block SDK init entirely
-    if (!appId || appId === "undefined") {
-      console.error("[FB] VITE_META_APP_ID is not set. Cannot initialize Facebook SDK.");
+    if (!appId) {
+      console.error("[FB] Meta App ID is not set. Cannot initialize Facebook SDK.");
       setAppIdMissing(true);
       return () => { mountedRef.current = false; };
     }
