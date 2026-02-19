@@ -21,4 +21,10 @@ verify_jwt = false
 [functions.whatsapp-evolution-proxy]
 verify_jwt = false
 
+[functions.whatsapp-connect]
+verify_jwt = false
+
+[functions.whatsapp-send-test]
+verify_jwt = false
+
 

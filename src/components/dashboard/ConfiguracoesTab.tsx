@@ -7,13 +7,10 @@ import {
   User,
   Palette,
   Bell,
-  MessageSquare,
   CreditCard,
   Calendar,
   Loader2,
   Upload,
-  CheckCircle2,
-  XCircle,
 } from "lucide-react";
 import {
   Dialog,
@@ -22,8 +19,8 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { useProfile, useUpdateProfile, useUpdateWorkspace, useSubscription, useWhatsappConfig, useGoogleCalendarConfig } from "@/hooks/use-data";
-import { WhatsAppEvolutionDialog } from "@/components/dashboard/WhatsAppEvolutionDialog";
+import { useProfile, useUpdateProfile, useUpdateWorkspace, useSubscription, useGoogleCalendarConfig } from "@/hooks/use-data";
+import { WhatsAppMetaConnect } from "@/components/dashboard/WhatsAppMetaConnect";
 import { useWorkspace } from "@/hooks/use-workspace";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -47,7 +44,6 @@ const statusLabels: Record<string, {label: string;className: string;}> = {
 
 const ConfiguracoesTab = () => {
   const [activeSection, setActiveSection] = useState("perfil");
-  const [whatsappDialogOpen, setWhatsappDialogOpen] = useState(false);
   const [gcalDialogOpen, setGcalDialogOpen] = useState(false);
   const [savingGcal, setSavingGcal] = useState(false);
   const [notifEmail, setNotifEmail] = useState(false);
@@ -57,7 +53,6 @@ const ConfiguracoesTab = () => {
   const { data: workspace, isLoading: wsLoading } = useWorkspace();
   const { data: profile } = useProfile(user?.id);
   const { data: subscription } = useSubscription(workspace?.id);
-  const { data: whatsappCfg, refetch: refetchWa } = useWhatsappConfig(workspace?.id);
   const { data: gcalCfg, refetch: refetchGcal } = useGoogleCalendarConfig(workspace?.id);
   const updateProfile = useUpdateProfile();
   const updateWorkspace = useUpdateWorkspace();
@@ -348,43 +343,15 @@ const ConfiguracoesTab = () => {
               <p className="text-sm text-muted-foreground">Conecte suas ferramentas externas.</p>
             </div>
             <div className="space-y-4">
-              {/* WhatsApp via QR Code */}
+              {/* WhatsApp Business (Meta Cloud API) */}
               <div className="rounded-xl border border-border bg-card p-5 shadow-soft">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center">
-                      <MessageSquare className="h-5 w-5 text-muted-foreground" />
-                    </div>
-                    <div>
-                      <p className="font-medium text-foreground">WhatsApp via QR Code</p>
-                      <div className="flex items-center gap-1.5 mt-0.5">
-                        {(whatsappCfg as any)?.connection_status === "connected" ? (
-                          <>
-                            <CheckCircle2 className="h-3 w-3 text-accent" />
-                            <p className="text-xs text-accent">Conectado</p>
-                            {(whatsappCfg as any)?.evolution_instance && (
-                              <p className="text-xs text-muted-foreground">· {(whatsappCfg as any).evolution_instance}</p>
-                            )}
-                          </>
-                        ) : (
-                          <>
-                            <XCircle className="h-3 w-3 text-muted-foreground" />
-                            <p className="text-xs text-muted-foreground">
-                              {(whatsappCfg as any)?.connection_status === "connecting" ? "Aguardando QR..." : "Não conectado"}
-                            </p>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  <Button
-                    variant={(whatsappCfg as any)?.connection_status === "connected" ? "outline" : "hero"}
-                    size="sm"
-                    onClick={() => setWhatsappDialogOpen(true)}
-                  >
-                    {(whatsappCfg as any)?.connection_status === "connected" ? "Configurar" : "Conectar"}
-                  </Button>
-                </div>
+                {workspace && (
+                  <WhatsAppMetaConnect
+                    workspaceId={workspace.id}
+                    compact
+                    onConnected={() => {}}
+                  />
+                )}
               </div>
 
               {/* Google Calendar */}
@@ -409,17 +376,6 @@ const ConfiguracoesTab = () => {
                 </Button>
               </div>
             </div>
-
-            {/* WhatsApp Evolution Dialog */}
-            {workspace && (
-              <WhatsAppEvolutionDialog
-                open={whatsappDialogOpen}
-                onOpenChange={setWhatsappDialogOpen}
-                workspaceId={workspace.id}
-                existingConfig={whatsappCfg}
-                onSaved={() => refetchWa()}
-              />
-            )}
 
             {/* Google Calendar Dialog */}
             <Dialog open={gcalDialogOpen} onOpenChange={setGcalDialogOpen}>

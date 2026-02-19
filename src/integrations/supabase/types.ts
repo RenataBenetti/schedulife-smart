@@ -731,6 +731,87 @@ export type Database = {
           },
         ]
       }
+      whatsapp_connections: {
+        Row: {
+          access_token_encrypted: string | null
+          created_at: string
+          created_by: string
+          id: string
+          last_error: string | null
+          phone_display: string | null
+          phone_number_id: string | null
+          status: string
+          token_expires_at: string | null
+          updated_at: string
+          waba_id: string | null
+          workspace_id: string
+        }
+        Insert: {
+          access_token_encrypted?: string | null
+          created_at?: string
+          created_by: string
+          id?: string
+          last_error?: string | null
+          phone_display?: string | null
+          phone_number_id?: string | null
+          status?: string
+          token_expires_at?: string | null
+          updated_at?: string
+          waba_id?: string | null
+          workspace_id: string
+        }
+        Update: {
+          access_token_encrypted?: string | null
+          created_at?: string
+          created_by?: string
+          id?: string
+          last_error?: string | null
+          phone_display?: string | null
+          phone_number_id?: string | null
+          status?: string
+          token_expires_at?: string | null
+          updated_at?: string
+          waba_id?: string | null
+          workspace_id?: string
+        }
+        Relationships: []
+      }
+      whatsapp_message_logs: {
+        Row: {
+          created_at: string
+          error: string | null
+          id: string
+          message_type: string
+          provider_message_id: string | null
+          status: string
+          template_name: string | null
+          to_phone: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          error?: string | null
+          id?: string
+          message_type?: string
+          provider_message_id?: string | null
+          status?: string
+          template_name?: string | null
+          to_phone: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          error?: string | null
+          id?: string
+          message_type?: string
+          provider_message_id?: string | null
+          status?: string
+          template_name?: string | null
+          to_phone?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       workspace_members: {
         Row: {
           created_at: string
