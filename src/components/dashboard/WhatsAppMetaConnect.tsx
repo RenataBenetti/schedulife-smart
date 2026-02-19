@@ -113,37 +113,40 @@ export const WhatsAppMetaConnect = ({
 
     setConnecting(true);
 
+    // FB.login callback MUST be a regular (non-async) function — the FB SDK
+    // does not support async callbacks and throws "asyncfunction, not function".
     window.FB.login(
-      async (response: any) => {
+      (response: any) => {
         if (response.authResponse) {
           const code = response.authResponse.code;
-          try {
-            const session = await supabase.auth.getSession();
-            const token = session.data.session?.access_token;
 
-            const res = await supabase.functions.invoke("whatsapp-connect", {
+          // Run async logic inside a plain Promise chain
+          supabase.functions
+            .invoke("whatsapp-connect", {
               body: { code, workspace_id: workspaceId },
+            })
+            .then((res) => {
+              if (res.error) throw new Error(res.error.message);
+              if (res.data?.error) throw new Error(res.data.error);
+              return fetchConnection().then(() => {
+                toast({
+                  title: "WhatsApp conectado! ✅",
+                  description: res.data?.message || "Conexão realizada com sucesso.",
+                });
+                onConnected?.();
+              });
+            })
+            .catch((err: any) => {
+              toast({
+                variant: "destructive",
+                title: "Erro ao conectar",
+                description: err.message || "Tente novamente ou contate o suporte.",
+              });
+              fetchConnection();
+            })
+            .finally(() => {
+              setConnecting(false);
             });
-
-            if (res.error) throw new Error(res.error.message);
-            if (res.data?.error) throw new Error(res.data.error);
-
-            await fetchConnection();
-            toast({
-              title: "WhatsApp conectado! ✅",
-              description: res.data?.message || "Conexão realizada com sucesso.",
-            });
-            onConnected?.();
-          } catch (err: any) {
-            toast({
-              variant: "destructive",
-              title: "Erro ao conectar",
-              description: err.message || "Tente novamente ou contate o suporte.",
-            });
-            await fetchConnection();
-          } finally {
-            setConnecting(false);
-          }
         } else {
           // Usuário cancelou o login
           toast({
