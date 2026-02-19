@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -31,10 +31,59 @@ interface WhatsAppConnection {
 interface WhatsAppMetaConnectProps {
   workspaceId: string;
   onConnected?: () => void;
-  compact?: boolean; // Para usar no ConfiguracoesTab sem botão inline
+  compact?: boolean;
 }
 
 const META_APP_ID = import.meta.env.VITE_META_APP_ID;
+
+// Singleton promise so the SDK loads/inits only once across re-renders
+let fbSdkPromise: Promise<void> | null = null;
+
+function loadFacebookSDK(): Promise<void> {
+  if (fbSdkPromise) return fbSdkPromise;
+
+  fbSdkPromise = new Promise<void>((resolve) => {
+    const doInit = () => {
+      window.FB.init({
+        appId: META_APP_ID,
+        cookie: true,
+        xfbml: false,
+        version: "v24.0",
+      });
+      resolve();
+    };
+
+    // FB already loaded and init already called (e.g. hot-reload)
+    if (window.FB) {
+      doInit();
+      return;
+    }
+
+    // Script tag already injected but FB not ready yet — wait for fbAsyncInit
+    if (document.getElementById("facebook-jssdk")) {
+      const prev = window.fbAsyncInit;
+      window.fbAsyncInit = () => {
+        prev?.();
+        doInit();
+      };
+      return;
+    }
+
+    // Fresh load: register fbAsyncInit BEFORE injecting the script
+    window.fbAsyncInit = () => {
+      doInit();
+    };
+
+    const script = document.createElement("script");
+    script.id = "facebook-jssdk";
+    script.src = "https://connect.facebook.net/en_US/sdk.js";
+    script.async = true;
+    script.defer = true;
+    document.head.appendChild(script);
+  });
+
+  return fbSdkPromise;
+}
 
 export const WhatsAppMetaConnect = ({
   workspaceId,
@@ -48,47 +97,16 @@ export const WhatsAppMetaConnect = ({
   const [sendingTest, setSendingTest] = useState(false);
   const [testPhone, setTestPhone] = useState("");
   const [fbSdkReady, setFbSdkReady] = useState(false);
+  const mountedRef = useRef(true);
 
-  // Carregar e inicializar SDK do Facebook
   useEffect(() => {
-    const initSDK = () => {
-      window.FB.init({
-        appId: META_APP_ID,
-        cookie: true,
-        xfbml: false,
-        version: "v24.0",
-      });
-      setFbSdkReady(true);
+    mountedRef.current = true;
+    loadFacebookSDK().then(() => {
+      if (mountedRef.current) setFbSdkReady(true);
+    });
+    return () => {
+      mountedRef.current = false;
     };
-
-    // Se o FB já está inicializado (script já carregado anteriormente)
-    if (window.FB) {
-      initSDK();
-      return;
-    }
-
-    // Se o script já existe no DOM mas o FB ainda não carregou,
-    // apenas registramos o callback e aguardamos
-    if (document.getElementById("facebook-jssdk")) {
-      const previous = window.fbAsyncInit;
-      window.fbAsyncInit = function () {
-        previous?.();
-        initSDK();
-      };
-      return;
-    }
-
-    // Primeiro carregamento: definir callback ANTES de inserir o script
-    window.fbAsyncInit = function () {
-      initSDK();
-    };
-
-    const script = document.createElement("script");
-    script.id = "facebook-jssdk";
-    script.src = "https://connect.facebook.net/en_US/sdk.js";
-    script.async = true;
-    script.defer = true;
-    document.head.appendChild(script);
   }, []);
 
   // Buscar estado atual da conexão
@@ -119,21 +137,19 @@ export const WhatsAppMetaConnect = ({
       toast({
         variant: "destructive",
         title: "Aguarde",
-        description: "O SDK do Facebook ainda está carregando. Tente novamente em instantes.",
+        description: "O SDK do Facebook ainda está carregando. Tente novamente.",
       });
       return;
     }
 
     setConnecting(true);
 
-    // FB.login callback MUST be a regular (non-async) function — the FB SDK
-    // does not support async callbacks and throws "asyncfunction, not function".
+    // FB.login MUST be a synchronous, non-async callback — FB SDK requirement
     window.FB.login(
       (response: any) => {
         if (response.authResponse) {
           const code = response.authResponse.code;
 
-          // Run async logic inside a plain Promise chain
           supabase.functions
             .invoke("whatsapp-connect", {
               body: { code, workspace_id: workspaceId },
@@ -161,7 +177,6 @@ export const WhatsAppMetaConnect = ({
               setConnecting(false);
             });
         } else {
-          // Usuário cancelou o login
           toast({
             variant: "destructive",
             title: "Login cancelado",
