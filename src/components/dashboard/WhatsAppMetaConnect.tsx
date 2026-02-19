@@ -55,7 +55,7 @@ export const WhatsAppMetaConnect = ({
 
     // Meta App ID is a PUBLIC value — safe to hardcode in frontend code.
     const rawEnv = import.meta.env.VITE_META_APP_ID;
-    const appId = (typeof rawEnv === "string" && rawEnv.trim()) ? rawEnv.trim() : "1419818939007002";
+    const appId = (typeof rawEnv === "string" && rawEnv.trim()) ? rawEnv.trim() : "960475733312726";
 
     console.log("[META] appId:", appId);
     console.log("[META] import.meta.env.VITE_META_APP_ID:", rawEnv);
