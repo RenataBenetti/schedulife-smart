@@ -70,7 +70,18 @@ export const WhatsAppMetaConnect = ({
 
       // Mark as ready only AFTER FB.init() has returned synchronously
       window.__fbReady = true;
-      if (import.meta.env.DEV) console.log("[FB] SDK fully initialized");
+      if (import.meta.env.DEV) {
+        console.log("[FB] SDK fully initialized — __fbReady=true");
+
+        // Proxy to trace every FB.login() call with a full stack trace.
+        // This will reveal if any code is calling FB.login() before our button click.
+        const originalLogin = window.FB.login.bind(window.FB);
+        window.FB.login = function (...args: any[]) {
+          console.trace("[FB] TRACE: FB.login chamado por");
+          return originalLogin(...args);
+        };
+      }
+
       if (mountedRef.current) setFbReady(true);
     };
 
