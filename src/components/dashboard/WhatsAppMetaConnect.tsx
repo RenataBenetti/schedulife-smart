@@ -52,16 +52,15 @@ export const WhatsAppMetaConnect = ({
   useEffect(() => {
     mountedRef.current = true;
 
-    // SDK already fully ready from a previous mount
+    // If SDK was already fully initialized in a previous render, just sync state
     if (window.__fbReady && window.FB) {
-      if (mountedRef.current) setFbReady(true);
+      setFbReady(true);
       return () => { mountedRef.current = false; };
     }
 
-    // Define fbAsyncInit BEFORE injecting the script (official FB pattern)
+    // fbAsyncInit MUST be defined before the script tag is injected.
+    // The browser calls it automatically once sdk.js finishes loading.
     window.fbAsyncInit = function () {
-      if (import.meta.env.DEV) console.log("[FB] init starting");
-
       window.FB.init({
         appId: import.meta.env.VITE_META_APP_ID,
         cookie: true,
@@ -69,24 +68,24 @@ export const WhatsAppMetaConnect = ({
         version: "v18.0",
       });
 
-      if (import.meta.env.DEV) console.log("[FB] init done, calling getLoginStatus");
-
-      // Use getLoginStatus to confirm SDK is fully operational before enabling login
-      window.FB.getLoginStatus(() => {
-        window.__fbReady = true;
-        if (import.meta.env.DEV) console.log("[FB] getLoginStatus ok, ready=true");
-        if (mountedRef.current) setFbReady(true);
-      });
+      // Mark as ready only AFTER FB.init() has returned synchronously
+      window.__fbReady = true;
+      if (import.meta.env.DEV) console.log("[FB] SDK fully initialized");
+      if (mountedRef.current) setFbReady(true);
     };
 
-    // Inject SDK script only once
+    // Inject the SDK script exactly once per page load
     if (!document.getElementById("facebook-jssdk")) {
+      if (import.meta.env.DEV) console.log("[FB] injecting sdk.js");
       const script = document.createElement("script");
       script.id = "facebook-jssdk";
       script.src = "https://connect.facebook.net/pt_BR/sdk.js";
       script.async = true;
+      script.defer = true;
       document.body.appendChild(script);
-      if (import.meta.env.DEV) console.log("[FB] SDK script injected");
+    } else {
+      // Script tag already exists but fbAsyncInit may not have fired yet — wait
+      if (import.meta.env.DEV) console.log("[FB] sdk.js already in DOM, waiting for fbAsyncInit");
     }
 
     return () => {
@@ -116,14 +115,15 @@ export const WhatsAppMetaConnect = ({
     fetchConnection();
   }, [fetchConnection]);
 
-  // FB.login must be called synchronously in the click handler — no await before it
+  // FB.login MUST be called synchronously inside the click handler.
+  // Never call it inside useEffect or after any await.
   const handleConnect = () => {
-    if (!window.FB || !window.__fbReady || !fbReady) {
-      console.error("[FB] FB not ready yet");
+    if (!window.FB || !fbReady) {
+      if (import.meta.env.DEV) console.error("[FB] not ready, blocking FB.login");
       toast({
         variant: "destructive",
         title: "Aguarde",
-        description: "O SDK do Facebook ainda não foi inicializado. Tente novamente em instantes.",
+        description: "O SDK do Facebook ainda está carregando. Tente em instantes.",
       });
       return;
     }
