@@ -46,19 +46,19 @@ export const WhatsAppMetaConnect = ({
   const [connecting, setConnecting] = useState(false);
   const [sendingTest, setSendingTest] = useState(false);
   const [testPhone, setTestPhone] = useState("");
-  const [isFBReady, setIsFBReady] = useState(false);
+  const [fbReady, setFbReady] = useState(false);
   const mountedRef = useRef(true);
 
   useEffect(() => {
     mountedRef.current = true;
 
-    // Already fully ready (getLoginStatus confirmed)
-    if (window.__fbReady && window.FB) {
-      if (mountedRef.current) setIsFBReady(true);
+    // SDK already initialized from a previous mount
+    if (window.FB && window.__fbReady) {
+      setFbReady(true);
       return () => { mountedRef.current = false; };
     }
 
-    // Define fbAsyncInit BEFORE injecting the script (official FB pattern)
+    // MUST define fbAsyncInit BEFORE injecting the script
     window.fbAsyncInit = function () {
       if (import.meta.env.DEV) console.log("[FB] init starting");
 
@@ -66,20 +66,15 @@ export const WhatsAppMetaConnect = ({
         appId: import.meta.env.VITE_META_APP_ID,
         cookie: true,
         xfbml: false,
-        version: "v24.0",
+        version: "v18.0",
       });
 
-      if (import.meta.env.DEV) console.log("[FB] init done, calling getLoginStatus");
-
-      // Confirm init is truly complete before enabling the button
-      window.FB.getLoginStatus(() => {
-        window.__fbReady = true;
-        if (import.meta.env.DEV) console.log("[FB] getLoginStatus ok, ready=true");
-        if (mountedRef.current) setIsFBReady(true);
-      });
+      window.__fbReady = true;
+      if (import.meta.env.DEV) console.log("[FB] init done, ready=true");
+      if (mountedRef.current) setFbReady(true);
     };
 
-    // Inject script only once
+    // Inject SDK script only once
     if (!document.getElementById("facebook-jssdk")) {
       const script = document.createElement("script");
       script.id = "facebook-jssdk";
@@ -118,7 +113,7 @@ export const WhatsAppMetaConnect = ({
 
   // FB.login must be called synchronously in the click handler — no await before it
   const handleConnect = () => {
-    if (!window.FB || !window.__fbReady || !isFBReady) {
+    if (!window.FB || !window.__fbReady || !fbReady) {
       console.error("[FB] FB not ready yet");
       toast({
         variant: "destructive",
@@ -240,14 +235,14 @@ export const WhatsAppMetaConnect = ({
               variant="outline"
               size="sm"
               onClick={handleConnect}
-              disabled={connecting || !isFBReady}
+              disabled={connecting || !fbReady}
             >
               {connecting ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <RefreshCw className="h-4 w-4" />
               )}
-              {!isFBReady ? "Carregando Facebook..." : "Reconectar"}
+              {!fbReady ? "Carregando Facebook..." : "Reconectar"}
             </Button>
           </>
         ) : (
@@ -263,14 +258,14 @@ export const WhatsAppMetaConnect = ({
               variant="hero"
               size="sm"
               onClick={handleConnect}
-              disabled={connecting || !isFBReady}
+              disabled={connecting || !fbReady}
             >
-              {connecting || !isFBReady ? (
+              {connecting || !fbReady ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <MessageSquare className="h-4 w-4" />
               )}
-              {!isFBReady
+              {!fbReady
                 ? "Carregando Facebook..."
                 : hasError
                 ? "Reconectar"
@@ -342,9 +337,9 @@ export const WhatsAppMetaConnect = ({
             variant="hero"
             className="w-full"
             onClick={handleConnect}
-            disabled={connecting || !isFBReady}
+            disabled={connecting || !fbReady}
           >
-            {!isFBReady ? (
+            {!fbReady ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
                 Carregando Facebook...
@@ -410,10 +405,10 @@ export const WhatsAppMetaConnect = ({
             variant="outline"
             size="sm"
             onClick={handleConnect}
-            disabled={connecting || !isFBReady}
+            disabled={connecting || !fbReady}
           >
             <RefreshCw className="h-4 w-4" />
-            {!isFBReady ? "Carregando Facebook..." : "Reconectar com outra conta"}
+            {!fbReady ? "Carregando Facebook..." : "Reconectar com outra conta"}
           </Button>
         </div>
       )}
