@@ -47,39 +47,49 @@ export const WhatsAppMetaConnect = ({
   const [sendingTest, setSendingTest] = useState(false);
   const [testPhone, setTestPhone] = useState("");
   const [fbReady, setFbReady] = useState(false);
+  const [appIdMissing, setAppIdMissing] = useState(false);
   const mountedRef = useRef(true);
 
   useEffect(() => {
     mountedRef.current = true;
 
+    const appId = import.meta.env.VITE_META_APP_ID;
+
+    // Guard: if appId is missing or literally "undefined", block SDK init entirely
+    if (!appId || appId === "undefined") {
+      console.error("[FB] VITE_META_APP_ID is not set. Cannot initialize Facebook SDK.");
+      setAppIdMissing(true);
+      return () => { mountedRef.current = false; };
+    }
+
     // If SDK was already fully initialized in a previous render, just sync state
     if (window.__fbReady && window.FB) {
+      if (import.meta.env.DEV) console.log("[FB] already ready, syncing state");
       setFbReady(true);
       return () => { mountedRef.current = false; };
     }
 
-    // fbAsyncInit MUST be defined before the script tag is injected.
+    // fbAsyncInit MUST be defined BEFORE the script tag is injected.
     // The browser calls it automatically once sdk.js finishes loading.
     window.fbAsyncInit = function () {
       if (import.meta.env.DEV) {
-        console.log("[FB] appId=", import.meta.env.VITE_META_APP_ID);
+        console.log("[FB] fbAsyncInit called, appId=", appId);
         console.log("[FB] calling FB.init");
       }
 
       window.FB.init({
-        appId: import.meta.env.VITE_META_APP_ID,
+        appId,
         cookie: true,
         xfbml: false,
         version: "v18.0",
       });
 
-      // Use getLoginStatus as a true confirmation that FB.init() is fully settled.
-      // Only after this callback fires is it safe to call FB.login().
-      window.FB.getLoginStatus(() => {
-        if (import.meta.env.DEV) console.log("[FB] getLoginStatus ok => fbReady=true");
-        window.__fbReady = true;
-        if (mountedRef.current) setFbReady(true);
-      });
+      // Set ready synchronously right after FB.init() returns.
+      // Do NOT call FB.getLoginStatus() here — it internally calls FB.login()
+      // which will throw "called before FB.init()" if appId was invalid.
+      window.__fbReady = true;
+      if (import.meta.env.DEV) console.log("[FB] FB.init done => fbReady=true");
+      if (mountedRef.current) setFbReady(true);
     };
 
     // Inject the SDK script exactly once per page load
@@ -92,7 +102,6 @@ export const WhatsAppMetaConnect = ({
       script.defer = true;
       document.body.appendChild(script);
     } else {
-      // Script tag already exists but fbAsyncInit may not have fired yet — wait
       if (import.meta.env.DEV) console.log("[FB] sdk.js already in DOM, waiting for fbAsyncInit");
     }
 
@@ -126,6 +135,14 @@ export const WhatsAppMetaConnect = ({
   // FB.login MUST be called synchronously inside the click handler.
   // Never call it inside useEffect or after any await.
   const handleConnect = () => {
+    if (appIdMissing) {
+      toast({
+        variant: "destructive",
+        title: "Configuração incompleta",
+        description: "A variável VITE_META_APP_ID não está configurada.",
+      });
+      return;
+    }
     if (!window.FB || !fbReady) {
       if (import.meta.env.DEV) console.error("[FB] not ready, blocking FB.login");
       toast({
@@ -219,6 +236,14 @@ export const WhatsAppMetaConnect = ({
       setSendingTest(false);
     }
   };
+
+  if (appIdMissing) {
+    return (
+      <div className="rounded-lg bg-destructive/10 border border-destructive/30 p-4 text-sm text-destructive">
+        <strong>Configuração ausente:</strong> A variável de ambiente <code>VITE_META_APP_ID</code> não está definida. Configure-a para usar a integração WhatsApp Business.
+      </div>
+    );
+  }
 
   if (loading) {
     return (
