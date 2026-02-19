@@ -49,21 +49,38 @@ export const WhatsAppMetaConnect = ({
   const [testPhone, setTestPhone] = useState("");
   const [fbSdkReady, setFbSdkReady] = useState(false);
 
-  // Carregar SDK do Facebook
+  // Carregar e inicializar SDK do Facebook
   useEffect(() => {
-    if (document.getElementById("facebook-jssdk")) {
+    const initSDK = () => {
+      window.FB.init({
+        appId: META_APP_ID,
+        cookie: true,
+        xfbml: false,
+        version: "v24.0",
+      });
       setFbSdkReady(true);
+    };
+
+    // Se o FB já está inicializado (script já carregado anteriormente)
+    if (window.FB) {
+      initSDK();
       return;
     }
 
+    // Se o script já existe no DOM mas o FB ainda não carregou,
+    // apenas registramos o callback e aguardamos
+    if (document.getElementById("facebook-jssdk")) {
+      const previous = window.fbAsyncInit;
+      window.fbAsyncInit = function () {
+        previous?.();
+        initSDK();
+      };
+      return;
+    }
+
+    // Primeiro carregamento: definir callback ANTES de inserir o script
     window.fbAsyncInit = function () {
-      window.FB.init({
-        appId: META_APP_ID,
-        autoLogAppEvents: true,
-        xfbml: true,
-        version: "v20.0",
-      });
-      setFbSdkReady(true);
+      initSDK();
     };
 
     const script = document.createElement("script");
@@ -72,10 +89,6 @@ export const WhatsAppMetaConnect = ({
     script.async = true;
     script.defer = true;
     document.head.appendChild(script);
-
-    return () => {
-      // Não remover o script ao desmontar — pode ser reutilizado
-    };
   }, []);
 
   // Buscar estado atual da conexão
@@ -102,7 +115,7 @@ export const WhatsAppMetaConnect = ({
   }, [fetchConnection]);
 
   const handleConnect = () => {
-    if (!fbSdkReady) {
+    if (!fbSdkReady || !window.FB) {
       toast({
         variant: "destructive",
         title: "Aguarde",
