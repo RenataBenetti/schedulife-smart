@@ -158,15 +158,9 @@ export const WhatsAppMetaConnect = ({
         }
       },
       {
-        scope:
-          "whatsapp_business_management,whatsapp_business_messaging,business_management",
+        config_id: "4253053541617103",
         response_type: "code",
         override_default_response_type: true,
-        extras: {
-          setup: {},
-          featureType: "",
-          sessionInfoVersion: "3",
-        },
       }
     );
   };
