@@ -1,57 +1,33 @@
 
-# Correção: SetupWizard — Substituir WhatsApp Cloud API pelo QR Code (Evolution API)
+# WhatsApp Business — Meta Cloud API (Embedded Signup) ✅ CONCLUÍDO
 
-## Causa raiz identificada
+## O que foi implementado
 
-O dialog mostrado na imagem **não é o painel de Configurações** (ConfiguracoesTab). É a tela do `SetupWizard.tsx`, o assistente de boas-vindas que novos usuários veem ao criar a conta.
+### Banco de dados
+- Tabela `whatsapp_connections`: armazena `waba_id`, `phone_number_id`, `access_token_encrypted`, `token_expires_at`, `status`, `phone_display` por workspace
+- Tabela `whatsapp_message_logs`: registra todos os envios (status, erro, provider_message_id)
+- RLS ativo em ambas as tabelas (membros do workspace acessam apenas os próprios dados)
 
-No arquivo `src/pages/SetupWizard.tsx`, o componente `WhatsAppStep` (linhas 118-148) ainda exibe o formulário antigo da Meta Cloud API:
-- Campo: Business ID
-- Campo: Phone Number ID
-- Campo: Access Token
-- Nota: "O custo das mensagens é pago diretamente por você à Meta"
+### Edge Functions
+- `whatsapp-connect`: troca o `code` do Embedded Signup por access token via Meta Graph API, extrai WABA ID e phone_number_id, persiste criptografado no banco. NUNCA expõe token ao frontend.
+- `whatsapp-send-test`: envia mensagem de teste via Cloud API usando credenciais do banco (service role). Registra em `whatsapp_message_logs`.
 
-Esse arquivo nunca foi atualizado durante a implementação anterior. A `ConfiguracoesTab.tsx` e o `WhatsAppEvolutionDialog.tsx` estão corretos — o problema está exclusivamente no `SetupWizard.tsx`.
+### Frontend
+- `WhatsAppMetaConnect.tsx`: componente reutilizável com 2 modos (compact para ConfiguracoesTab, completo para SetupWizard)
+- Carrega FB SDK dinamicamente apenas quando necessário
+- Fluxo: botão → FB.login → Embedded Signup → backend troca code → estado "Conectado ✅"
+- Botão "Enviar mensagem de teste" com campo de número destino
+- SetupWizard: passo WhatsApp usa o novo componente; botão "Pular por agora" permite avançar sem conectar
+- ConfiguracoesTab: card WhatsApp Business substituído pelo novo componente
 
----
+### Segurança
+- access_token NUNCA vai ao frontend
+- Todas chamadas à Meta Graph API ocorrem no backend (Edge Functions)
+- workspace_id validado via RLS e verificação de membro
+- Erros comuns tratados com mensagens amigáveis
 
-## O que será alterado
-
-### Arquivo: `src/pages/SetupWizard.tsx`
-
-Substituir o componente `WhatsAppStep` (passo 0 do wizard) completamente:
-
-**Antes (Meta Cloud API):**
-- Título: "Conectar WhatsApp Cloud API"
-- Campos: Business ID, Phone Number ID, Access Token
-- Nota sobre custo da Meta
-
-**Depois (Evolution API / QR Code):**
-- Título: "Conectar WhatsApp via QR Code"
-- Explicação simples do que é necessário: URL do servidor, API Key, nome da instância
-- Dica amigável sobre usar um número dedicado (sem mencionar risco ou banimento)
-- Botão "Configurar agora" que redireciona o usuário para a aba Integrações no dashboard
-- Alternativa: o usuário pode pular e configurar depois em Configurações → Integrações
-
-O wizard é apenas informativo/introdutório — a configuração real já acontece no `WhatsAppEvolutionDialog` do dashboard. Portanto, o step do wizard será simplificado para orientar o usuário a ir até Configurações após concluir o setup, em vez de duplicar o formulário inteiro.
-
----
-
-## Mudança técnica
-
-Apenas **um arquivo** precisa ser modificado:
-
-| Arquivo | Mudança |
-|---|---|
-| `src/pages/SetupWizard.tsx` | Substituir o componente `WhatsAppStep` pelo novo fluxo QR Code |
-
----
-
-## Resultado esperado
-
-Ao acessar o SetupWizard (ex: usuário novo), o passo "WhatsApp" mostrará:
-- Nome correto: "Conectar WhatsApp via QR Code"
-- Instruções sobre a Evolution API
-- Dica amigável sobre chip dedicado
-- Orientação para finalizar a conexão em Configurações → Integrações
-- Sem nenhuma referência à Meta, Business ID, Phone Number ID ou Access Token
+## Pendências (pós-MVP)
+- Configurar URL de callback no Meta App (Redirect URI para o fluxo Embedded Signup)
+- Criar template `agendix_test` na conta WhatsApp Business para mensagens fora da janela de 24h
+- Webhooks inbound (receber respostas dos clientes) — próxima fase
+- Refresh automático de token quando próximo de expirar
