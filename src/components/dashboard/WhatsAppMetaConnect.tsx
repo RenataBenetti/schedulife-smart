@@ -17,6 +17,7 @@ declare global {
   interface Window {
     FB: any;
     fbAsyncInit: () => void;
+    __fbReady: boolean;
   }
 }
 
@@ -34,8 +35,6 @@ interface WhatsAppMetaConnectProps {
   compact?: boolean;
 }
 
-const META_APP_ID = import.meta.env.VITE_META_APP_ID;
-
 export const WhatsAppMetaConnect = ({
   workspaceId,
   onConnected,
@@ -47,67 +46,46 @@ export const WhatsAppMetaConnect = ({
   const [connecting, setConnecting] = useState(false);
   const [sendingTest, setSendingTest] = useState(false);
   const [testPhone, setTestPhone] = useState("");
-  const [isFacebookReady, setIsFacebookReady] = useState(false);
+  const [isFBReady, setIsFBReady] = useState(false);
   const mountedRef = useRef(true);
 
-  // Load and initialize Facebook SDK
   useEffect(() => {
     mountedRef.current = true;
 
-    // If FB is already initialized, mark ready immediately
-    if (window.FB) {
-      setIsFacebookReady(true);
+    // Already initialized
+    if (window.__fbReady && window.FB) {
+      setIsFBReady(true);
       return;
     }
 
-    // If script is already in DOM but FB not ready yet, wait for it
-    if (document.getElementById("facebook-jssdk")) {
-      const checkInterval = setInterval(() => {
-        if (window.FB) {
-          clearInterval(checkInterval);
-          if (mountedRef.current) setIsFacebookReady(true);
-        }
-      }, 100);
-      return () => {
-        clearInterval(checkInterval);
-        mountedRef.current = false;
-      };
-    }
-
-    // Inject script fresh
-    const script = document.createElement("script");
-    script.id = "facebook-jssdk";
-    script.src = "https://connect.facebook.net/pt_BR/sdk.js";
-    script.async = true;
-
-    script.onload = () => {
-      if (!window.FB) {
-        console.error("[FB] SDK loaded but window.FB is undefined");
-        return;
-      }
+    // Define fbAsyncInit BEFORE injecting the script (official FB pattern)
+    window.fbAsyncInit = function () {
       window.FB.init({
-        appId: META_APP_ID,
+        appId: import.meta.env.VITE_META_APP_ID,
         cookie: true,
         xfbml: false,
         version: "v24.0",
       });
-      console.log("[FB] FB.init done, ready=true");
-      if (mountedRef.current) setIsFacebookReady(true);
+      window.__fbReady = true;
+      console.log("[FB] SDK fully initialized");
+      if (mountedRef.current) setIsFBReady(true);
     };
 
-    script.onerror = () => {
-      console.error("[FB] Failed to load Facebook SDK script");
-    };
-
-    document.body.appendChild(script);
-    console.log("[FB] SDK script injected");
+    // Inject script only once
+    if (!document.getElementById("facebook-jssdk")) {
+      const script = document.createElement("script");
+      script.id = "facebook-jssdk";
+      script.src = "https://connect.facebook.net/pt_BR/sdk.js";
+      script.async = true;
+      document.body.appendChild(script);
+      console.log("[FB] SDK script injected");
+    }
 
     return () => {
       mountedRef.current = false;
     };
   }, []);
 
-  // Fetch current connection state
   const fetchConnection = useCallback(async () => {
     setLoading(true);
     try {
@@ -130,30 +108,20 @@ export const WhatsAppMetaConnect = ({
     fetchConnection();
   }, [fetchConnection]);
 
-  // Click handler — synchronous, FB.login must be called without any await before it
+  // FB.login must be called synchronously in the click handler — no await before it
   const handleConnect = () => {
-    if (!window.FB) {
-      console.error("[FB] FB SDK not loaded");
-      toast({
-        variant: "destructive",
-        title: "SDK não carregado",
-        description: "O SDK do Facebook não foi carregado. Recarregue a página e tente novamente.",
-      });
-      return;
-    }
-
-    if (!isFacebookReady) {
+    if (!window.__fbReady || !window.FB) {
+      console.error("[FB] FB not ready yet");
       toast({
         variant: "destructive",
         title: "Aguarde",
-        description: "O Facebook ainda está inicializando. Tente novamente em instantes.",
+        description: "O SDK do Facebook ainda não foi inicializado. Tente novamente em instantes.",
       });
       return;
     }
 
     setConnecting(true);
 
-    // FB.login MUST be called synchronously inside the click handler — no await before this
     window.FB.login(
       (response: any) => {
         if (response.authResponse) {
@@ -248,14 +216,6 @@ export const WhatsAppMetaConnect = ({
   const isConnected = connection?.status === "connected";
   const hasError = connection?.status === "error";
 
-  const connectButtonLabel = !isFacebookReady
-    ? "Carregando Facebook..."
-    : connecting
-    ? "Conectando..."
-    : hasError
-    ? "Reconectar"
-    : "Conectar";
-
   if (compact) {
     return (
       <div className="flex items-center gap-3">
@@ -272,14 +232,14 @@ export const WhatsAppMetaConnect = ({
               variant="outline"
               size="sm"
               onClick={handleConnect}
-              disabled={connecting || !isFacebookReady}
+              disabled={connecting || !isFBReady}
             >
               {connecting ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <RefreshCw className="h-4 w-4" />
               )}
-              {!isFacebookReady ? "Carregando Facebook..." : "Reconectar"}
+              {!isFBReady ? "Carregando Facebook..." : "Reconectar"}
             </Button>
           </>
         ) : (
@@ -295,14 +255,18 @@ export const WhatsAppMetaConnect = ({
               variant="hero"
               size="sm"
               onClick={handleConnect}
-              disabled={connecting || !isFacebookReady}
+              disabled={connecting || !isFBReady}
             >
-              {connecting || !isFacebookReady ? (
+              {connecting || !isFBReady ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <MessageSquare className="h-4 w-4" />
               )}
-              {connectButtonLabel}
+              {!isFBReady
+                ? "Carregando Facebook..."
+                : hasError
+                ? "Reconectar"
+                : "Conectar"}
             </Button>
           </>
         )}
@@ -310,7 +274,6 @@ export const WhatsAppMetaConnect = ({
     );
   }
 
-  // Full version for Setup Wizard
   return (
     <div className="space-y-6">
       <div>
@@ -371,12 +334,17 @@ export const WhatsAppMetaConnect = ({
             variant="hero"
             className="w-full"
             onClick={handleConnect}
-            disabled={connecting || !isFacebookReady}
+            disabled={connecting || !isFBReady}
           >
-            {connecting || !isFacebookReady ? (
+            {!isFBReady ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
-                {!isFacebookReady ? "Carregando Facebook..." : "Conectando..."}
+                Carregando Facebook...
+              </>
+            ) : connecting ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Conectando...
               </>
             ) : (
               <>
@@ -434,10 +402,10 @@ export const WhatsAppMetaConnect = ({
             variant="outline"
             size="sm"
             onClick={handleConnect}
-            disabled={connecting || !isFacebookReady}
+            disabled={connecting || !isFBReady}
           >
             <RefreshCw className="h-4 w-4" />
-            {!isFacebookReady ? "Carregando Facebook..." : "Reconectar com outra conta"}
+            {!isFBReady ? "Carregando Facebook..." : "Reconectar com outra conta"}
           </Button>
         </div>
       )}
