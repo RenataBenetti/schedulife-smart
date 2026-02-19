@@ -61,6 +61,11 @@ export const WhatsAppMetaConnect = ({
     // fbAsyncInit MUST be defined before the script tag is injected.
     // The browser calls it automatically once sdk.js finishes loading.
     window.fbAsyncInit = function () {
+      if (import.meta.env.DEV) {
+        console.log("[FB] appId=", import.meta.env.VITE_META_APP_ID);
+        console.log("[FB] calling FB.init");
+      }
+
       window.FB.init({
         appId: import.meta.env.VITE_META_APP_ID,
         cookie: true,
@@ -68,21 +73,13 @@ export const WhatsAppMetaConnect = ({
         version: "v18.0",
       });
 
-      // Mark as ready only AFTER FB.init() has returned synchronously
-      window.__fbReady = true;
-      if (import.meta.env.DEV) {
-        console.log("[FB] SDK fully initialized — __fbReady=true");
-
-        // Proxy to trace every FB.login() call with a full stack trace.
-        // This will reveal if any code is calling FB.login() before our button click.
-        const originalLogin = window.FB.login.bind(window.FB);
-        window.FB.login = function (...args: any[]) {
-          console.trace("[FB] TRACE: FB.login chamado por");
-          return originalLogin(...args);
-        };
-      }
-
-      if (mountedRef.current) setFbReady(true);
+      // Use getLoginStatus as a true confirmation that FB.init() is fully settled.
+      // Only after this callback fires is it safe to call FB.login().
+      window.FB.getLoginStatus(() => {
+        if (import.meta.env.DEV) console.log("[FB] getLoginStatus ok => fbReady=true");
+        window.__fbReady = true;
+        if (mountedRef.current) setFbReady(true);
+      });
     };
 
     // Inject the SDK script exactly once per page load
