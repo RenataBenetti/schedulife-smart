@@ -3,7 +3,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-// Input and Label still used in other steps
 import {
   Calendar,
   MessageSquare,
@@ -21,6 +20,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { WhatsAppMetaConnect } from "@/components/dashboard/WhatsAppMetaConnect";
+import { useWorkspace } from "@/hooks/use-workspace";
 
 const steps = [
   { title: "WhatsApp", icon: MessageSquare },
@@ -31,6 +32,7 @@ const steps = [
 
 const SetupWizard = () => {
   const [currentStep, setCurrentStep] = useState(0);
+  const { data: workspace } = useWorkspace();
 
   const next = () => setCurrentStep((s) => Math.min(s + 1, steps.length - 1));
   const prev = () => setCurrentStep((s) => Math.max(s - 1, 0));
@@ -87,7 +89,10 @@ const SetupWizard = () => {
 
         {/* Step content */}
         <div className="rounded-xl border border-border bg-card p-8 shadow-card">
-          {currentStep === 0 && <WhatsAppStep />}
+          {currentStep === 0 && workspace && (
+            <WhatsAppMetaConnect workspaceId={workspace.id} onConnected={next} />
+          )}
+          {currentStep === 0 && !workspace && <WhatsAppLoadingStep />}
           {currentStep === 1 && <GoogleCalendarStep />}
           {currentStep === 2 && <MessageTemplateStep />}
           {currentStep === 3 && <FirstClientStep />}
@@ -100,8 +105,8 @@ const SetupWizard = () => {
             Voltar
           </Button>
           {currentStep < steps.length - 1 ? (
-            <Button variant="hero" onClick={next}>
-              Próximo
+            <Button variant="ghost" size="sm" onClick={next} className="text-muted-foreground">
+              Pular por agora
               <ArrowRight className="h-4 w-4" />
             </Button>
           ) : (
@@ -116,50 +121,12 @@ const SetupWizard = () => {
   );
 };
 
-const WhatsAppStep = () => (
-  <div className="space-y-6">
-    <div>
-      <h2 className="text-xl font-bold text-foreground mb-1">Conectar WhatsApp via QR Code</h2>
-      <p className="text-sm text-muted-foreground">
-        Use a Evolution API para conectar seu WhatsApp escaneando um QR Code — sem precisar de conta Business na Meta.
-      </p>
-    </div>
-
-    <div className="space-y-3">
-      <div className="flex items-start gap-3 rounded-lg border border-border bg-muted/30 p-4">
-        <div className="h-7 w-7 rounded-full gradient-primary flex items-center justify-center shrink-0 mt-0.5">
-          <span className="text-xs font-bold text-primary-foreground">1</span>
-        </div>
-        <div>
-          <p className="text-sm font-medium text-foreground">Tenha um servidor Evolution API</p>
-          <p className="text-xs text-muted-foreground mt-0.5">Você precisará da URL do servidor, da API Key e de um nome para a instância.</p>
-        </div>
-      </div>
-      <div className="flex items-start gap-3 rounded-lg border border-border bg-muted/30 p-4">
-        <div className="h-7 w-7 rounded-full gradient-primary flex items-center justify-center shrink-0 mt-0.5">
-          <span className="text-xs font-bold text-primary-foreground">2</span>
-        </div>
-        <div>
-          <p className="text-sm font-medium text-foreground">Configure em Integrações</p>
-          <p className="text-xs text-muted-foreground mt-0.5">Após concluir este setup, vá em <strong>Configurações → Integrações</strong> para inserir os dados e escanear o QR Code.</p>
-        </div>
-      </div>
-      <div className="flex items-start gap-3 rounded-lg border border-border bg-muted/30 p-4">
-        <div className="h-7 w-7 rounded-full gradient-primary flex items-center justify-center shrink-0 mt-0.5">
-          <span className="text-xs font-bold text-primary-foreground">3</span>
-        </div>
-        <div>
-          <p className="text-sm font-medium text-foreground">Escaneie com seu celular</p>
-          <p className="text-xs text-muted-foreground mt-0.5">Abra o WhatsApp no celular, acesse Aparelhos conectados e escaneie o QR Code gerado.</p>
-        </div>
-      </div>
-    </div>
-
-    <div className="rounded-lg bg-accent/20 border border-accent/30 p-4 text-sm text-foreground">
-      <strong>💡 Dica:</strong> Recomendamos usar um número de telefone dedicado para o WhatsApp do consultório, separado do seu número pessoal.
-    </div>
+const WhatsAppLoadingStep = () => (
+  <div className="flex items-center justify-center py-12 text-muted-foreground">
+    Carregando...
   </div>
 );
+
 
 const GoogleCalendarStep = () => (
   <div className="space-y-6">
