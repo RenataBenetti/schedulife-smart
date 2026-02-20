@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,13 +13,9 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
-declare global {
-  interface Window {
-    FB: any;
-    fbAsyncInit: () => void;
-    __fbReady: boolean;
-  }
-}
+const META_APP_ID = "960475733312726";
+const META_CONFIG_ID = "4253053541617103";
+const META_REDIRECT_URI = "https://agendix.soriamarketing.com.br/dashboard";
 
 interface WhatsAppConnection {
   status: "disconnected" | "connected" | "error";
@@ -46,75 +42,6 @@ export const WhatsAppMetaConnect = ({
   const [connecting, setConnecting] = useState(false);
   const [sendingTest, setSendingTest] = useState(false);
   const [testPhone, setTestPhone] = useState("");
-  const [fbReady, setFbReady] = useState(false);
-  const [appIdMissing, setAppIdMissing] = useState(false);
-  const mountedRef = useRef(true);
-
-  useEffect(() => {
-    mountedRef.current = true;
-
-    // Meta App ID is a PUBLIC value — safe to hardcode in frontend code.
-    const rawEnv = import.meta.env.VITE_META_APP_ID;
-    const appId = (typeof rawEnv === "string" && rawEnv.trim()) ? rawEnv.trim() : "960475733312726";
-
-    console.log("[META] appId:", appId);
-    console.log("[META] import.meta.env.VITE_META_APP_ID:", rawEnv);
-    console.log("[META] typeof VITE_META_APP_ID:", typeof rawEnv);
-
-    // Validate: must be digits only
-    if (!appId || !/^\d+$/.test(appId)) {
-      console.error("[FB] App ID inválido ou ausente:", appId);
-      setAppIdMissing(true);
-      return () => { mountedRef.current = false; };
-    }
-
-    // If SDK was already fully initialized in a previous render, just sync state
-    if (window.__fbReady && window.FB) {
-      if (import.meta.env.DEV) console.log("[FB] already ready, syncing state");
-      setFbReady(true);
-      return () => { mountedRef.current = false; };
-    }
-
-    // fbAsyncInit MUST be defined BEFORE the script tag is injected.
-    // The browser calls it automatically once sdk.js finishes loading.
-    window.fbAsyncInit = function () {
-      if (import.meta.env.DEV) {
-        console.log("[FB] fbAsyncInit called, appId=", appId);
-        console.log("[FB] calling FB.init");
-      }
-
-      window.FB.init({
-        appId,
-        cookie: true,
-        xfbml: false,
-        version: "v18.0",
-      });
-
-      // Set ready synchronously right after FB.init() returns.
-      // Do NOT call FB.getLoginStatus() here — it internally calls FB.login()
-      // which will throw "called before FB.init()" if appId was invalid.
-      window.__fbReady = true;
-      if (import.meta.env.DEV) console.log("[FB] FB.init done => fbReady=true");
-      if (mountedRef.current) setFbReady(true);
-    };
-
-    // Inject the SDK script exactly once per page load
-    if (!document.getElementById("facebook-jssdk")) {
-      if (import.meta.env.DEV) console.log("[FB] injecting sdk.js");
-      const script = document.createElement("script");
-      script.id = "facebook-jssdk";
-      script.src = "https://connect.facebook.net/pt_BR/sdk.js";
-      script.async = true;
-      script.defer = true;
-      document.body.appendChild(script);
-    } else {
-      if (import.meta.env.DEV) console.log("[FB] sdk.js already in DOM, waiting for fbAsyncInit");
-    }
-
-    return () => {
-      mountedRef.current = false;
-    };
-  }, []);
 
   const fetchConnection = useCallback(async () => {
     setLoading(true);
@@ -138,75 +65,81 @@ export const WhatsAppMetaConnect = ({
     fetchConnection();
   }, [fetchConnection]);
 
-  // FB.login MUST be called synchronously inside the click handler.
-  // Never call it inside useEffect or after any await.
-  const handleConnect = () => {
-    if (appIdMissing) {
-      toast({
-        variant: "destructive",
-        title: "Configuração incompleta",
-        description: "A variável VITE_META_APP_ID não está configurada.",
-      });
-      return;
-    }
-    if (!window.FB || !fbReady) {
-      if (import.meta.env.DEV) console.error("[FB] not ready, blocking FB.login");
-      toast({
-        variant: "destructive",
-        title: "Aguarde",
-        description: "O SDK do Facebook ainda está carregando. Tente em instantes.",
-      });
-      return;
+  // Handle the OAuth callback code from URL on mount
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const code = url.searchParams.get("code");
+    const state = url.searchParams.get("state");
+
+    if (!code) return;
+
+    // Clean URL immediately
+    url.searchParams.delete("code");
+    url.searchParams.delete("state");
+    window.history.replaceState({}, "", url.pathname + url.search);
+
+    // Parse state to get workspace_id
+    let parsedWorkspaceId = workspaceId;
+    if (state) {
+      try {
+        const parsed = JSON.parse(atob(state));
+        if (parsed.workspace_id) parsedWorkspaceId = parsed.workspace_id;
+      } catch {
+        // state might not be valid, use prop
+      }
     }
 
+    console.log("[WhatsApp] OAuth code received, exchanging token...");
     setConnecting(true);
 
-    window.FB.login(
-      (response: any) => {
-        if (response.authResponse) {
-          const code = response.authResponse.code;
-
-          supabase.functions
-            .invoke("whatsapp-connect", {
-              body: { code, workspace_id: workspaceId, sdk_popup: true },
-            })
-            .then((res) => {
-              if (res.error) throw new Error(res.error.message);
-              if (res.data?.error) throw new Error(res.data.error);
-              return fetchConnection().then(() => {
-                toast({
-                  title: "WhatsApp conectado! ✅",
-                  description: res.data?.message || "Conexão realizada com sucesso.",
-                });
-                onConnected?.();
-              });
-            })
-            .catch((err: any) => {
-              toast({
-                variant: "destructive",
-                title: "Erro ao conectar",
-                description: err.message || "Tente novamente ou contate o suporte.",
-              });
-              fetchConnection();
-            })
-            .finally(() => {
-              setConnecting(false);
-            });
-        } else {
+    supabase.functions
+      .invoke("whatsapp-connect", {
+        body: {
+          code,
+          workspace_id: parsedWorkspaceId,
+          redirect_uri: META_REDIRECT_URI,
+        },
+      })
+      .then((res) => {
+        if (res.error) throw new Error(res.error.message);
+        if (res.data?.error) throw new Error(res.data.error);
+        return fetchConnection().then(() => {
           toast({
-            variant: "destructive",
-            title: "Login cancelado",
-            description: "Você cancelou o login com Facebook. Tente novamente.",
+            title: "WhatsApp conectado! ✅",
+            description: res.data?.message || "Conexão realizada com sucesso.",
           });
-          setConnecting(false);
-        }
-      },
-      {
-        config_id: "4253053541617103",
-        response_type: "code",
-        override_default_response_type: true,
-      }
-    );
+          onConnected?.();
+        });
+      })
+      .catch((err: any) => {
+        console.error("[WhatsApp] Token exchange error:", err.message);
+        toast({
+          variant: "destructive",
+          title: "Erro ao conectar",
+          description: err.message || "Tente novamente ou contate o suporte.",
+        });
+        fetchConnection();
+      })
+      .finally(() => {
+        setConnecting(false);
+      });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Redirect-based OAuth — navigate to Meta's OAuth dialog
+  const handleConnect = () => {
+    const state = btoa(JSON.stringify({ workspace_id: workspaceId }));
+
+    const params = new URLSearchParams({
+      client_id: META_APP_ID,
+      redirect_uri: META_REDIRECT_URI,
+      config_id: META_CONFIG_ID,
+      response_type: "code",
+      state,
+    });
+
+    const oauthUrl = `https://www.facebook.com/v18.0/dialog/oauth?${params.toString()}`;
+    console.log("[WhatsApp] Redirecting to Meta OAuth:", oauthUrl);
+    window.location.href = oauthUrl;
   };
 
   const handleSendTest = async () => {
@@ -243,14 +176,6 @@ export const WhatsAppMetaConnect = ({
     }
   };
 
-  if (appIdMissing) {
-    return (
-      <div className="rounded-lg bg-destructive/10 border border-destructive/30 p-4 text-sm text-destructive">
-        <strong>Configuração ausente:</strong> A variável de ambiente <code>VITE_META_APP_ID</code> não está definida. Configure-a para usar a integração WhatsApp Business.
-      </div>
-    );
-  }
-
   if (loading) {
     return (
       <div className="flex items-center gap-2 text-muted-foreground py-2">
@@ -279,14 +204,14 @@ export const WhatsAppMetaConnect = ({
               variant="outline"
               size="sm"
               onClick={handleConnect}
-              disabled={connecting || !fbReady}
+              disabled={connecting}
             >
               {connecting ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <RefreshCw className="h-4 w-4" />
               )}
-              {!fbReady ? "Carregando Facebook..." : "Reconectar"}
+              Reconectar
             </Button>
           </>
         ) : (
@@ -302,18 +227,14 @@ export const WhatsAppMetaConnect = ({
               variant="hero"
               size="sm"
               onClick={handleConnect}
-              disabled={connecting || !fbReady}
+              disabled={connecting}
             >
-              {connecting || !fbReady ? (
+              {connecting ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <MessageSquare className="h-4 w-4" />
               )}
-              {!fbReady
-                ? "Carregando Facebook..."
-                : hasError
-                ? "Reconectar"
-                : "Conectar"}
+              {hasError ? "Reconectar" : "Conectar"}
             </Button>
           </>
         )}
@@ -328,7 +249,7 @@ export const WhatsAppMetaConnect = ({
           Conectar WhatsApp Business
         </h2>
         <p className="text-sm text-muted-foreground">
-          Conecte seu WhatsApp em 2 minutos. Você fará login com Facebook e confirmará seu número.
+          Conecte seu WhatsApp em 2 minutos. Você será redirecionado ao Facebook para autorizar sua conta.
           O custo das conversas é cobrado pela Meta na sua conta.
         </p>
       </div>
@@ -343,7 +264,7 @@ export const WhatsAppMetaConnect = ({
               <div>
                 <p className="text-sm font-medium text-foreground">Clique no botão abaixo</p>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Uma janela do Facebook abrirá para você fazer login.
+                  Você será redirecionado ao Facebook para fazer login.
                 </p>
               </div>
             </div>
@@ -365,7 +286,7 @@ export const WhatsAppMetaConnect = ({
               <div>
                 <p className="text-sm font-medium text-foreground">Pronto!</p>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Seu WhatsApp estará pronto para enviar mensagens automáticas.
+                  Você será redirecionado de volta e seu WhatsApp estará conectado.
                 </p>
               </div>
             </div>
@@ -381,14 +302,9 @@ export const WhatsAppMetaConnect = ({
             variant="hero"
             className="w-full"
             onClick={handleConnect}
-            disabled={connecting || !fbReady}
+            disabled={connecting}
           >
-            {!fbReady ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Carregando Facebook...
-              </>
-            ) : connecting ? (
+            {connecting ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
                 Conectando...
@@ -449,10 +365,10 @@ export const WhatsAppMetaConnect = ({
             variant="outline"
             size="sm"
             onClick={handleConnect}
-            disabled={connecting || !fbReady}
+            disabled={connecting}
           >
             <RefreshCw className="h-4 w-4" />
-            {!fbReady ? "Carregando Facebook..." : "Reconectar com outra conta"}
+            Reconectar com outra conta
           </Button>
         </div>
       )}

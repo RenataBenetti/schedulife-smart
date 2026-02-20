@@ -40,7 +40,7 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json();
-    const { code, workspace_id, sdk_popup, meta_redirect_uri_used } = body;
+    const { code, workspace_id, redirect_uri: clientRedirectUri } = body;
 
     if (!code || !workspace_id) {
       return new Response(JSON.stringify({ error: "code e workspace_id são obrigatórios" }), {
@@ -69,23 +69,24 @@ Deno.serve(async (req) => {
     const META_GRAPH_VERSION = Deno.env.get("META_GRAPH_VERSION") || "v20.0";
     const META_REDIRECT_URI = Deno.env.get("META_REDIRECT_URI") || "https://agendix.soriamarketing.com.br/dashboard";
 
-    // --- Validação estruturada de configuração ---
+    // Determine redirect_uri: prefer what the frontend sent, fallback to secret
+    const redirectUri = clientRedirectUri || META_REDIRECT_URI;
+
+    // --- Config validation ---
     const missing: string[] = [];
     if (!META_APP_ID) missing.push("META_APP_ID");
     if (!META_APP_SECRET) missing.push("META_APP_SECRET");
-    if (!META_GRAPH_VERSION) missing.push("META_GRAPH_VERSION");
 
-    console.log("[whatsapp-connect] Config check:", JSON.stringify({
-      app_id_used: META_APP_ID || "(not set)",
-      app_id_expected: "960475733312726",
-      app_id_matches: META_APP_ID === "960475733312726",
+    console.log("[whatsapp-connect] Config:", JSON.stringify({
+      app_id: META_APP_ID || "(not set)",
       secret_defined: !!META_APP_SECRET,
-      redirect_uri: META_REDIRECT_URI || "(not set)",
+      redirect_uri: redirectUri,
+      redirect_uri_source: clientRedirectUri ? "frontend" : "secret/fallback",
       graph_version: META_GRAPH_VERSION,
     }));
 
     if (missing.length > 0) {
-      console.error("[whatsapp-connect] META_CONFIG_INVALID, missing:", missing);
+      console.error("[whatsapp-connect] Missing config:", missing);
       return new Response(JSON.stringify({ error: "META_CONFIG_INVALID", missing }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -96,50 +97,36 @@ Deno.serve(async (req) => {
       console.error("[whatsapp-connect] META_APP_ID mismatch:", META_APP_ID);
       return new Response(JSON.stringify({
         error: "META_CONFIG_INVALID",
-        detail: "META_APP_ID não corresponde ao esperado (960475733312726)",
+        detail: "META_APP_ID não corresponde ao esperado",
       }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Trocar code por access token
-    // When code comes from FB.login() JS SDK popup (sdk_popup=true),
-    // Meta uses xd_arbiter internally — we must NOT send redirect_uri.
-    // When code comes from a redirect-based flow, use the provided or fallback redirect_uri.
+    // Exchange code for access token — ALWAYS include redirect_uri
     const tokenParams = new URLSearchParams({
       client_id: META_APP_ID,
       client_secret: META_APP_SECRET!,
       code,
+      redirect_uri: redirectUri,
     });
 
-    let redirectUriUsed = "(omitted - SDK popup)";
-    if (sdk_popup) {
-      console.log("[whatsapp-connect] Code from JS SDK popup — skipping redirect_uri in token exchange");
-    } else {
-      const redirectUri = meta_redirect_uri_used || META_REDIRECT_URI;
-      if (!redirectUri) {
-        console.warn("[whatsapp-connect] No redirect_uri available and not SDK popup — this may fail");
-      }
-      if (redirectUri) {
-        tokenParams.set("redirect_uri", redirectUri);
-        redirectUriUsed = redirectUri;
-      }
-      if (!meta_redirect_uri_used && META_REDIRECT_URI) {
-        console.warn("[whatsapp-connect] Using fallback META_REDIRECT_URI secret (frontend did not send meta_redirect_uri_used)");
-      }
-    }
-
     const tokenUrl = `https://graph.facebook.com/${META_GRAPH_VERSION}/oauth/access_token?${tokenParams.toString()}`;
-    console.log("[whatsapp-connect] Token exchange — app_id:", META_APP_ID, "redirect_uri:", redirectUriUsed);
-    console.log("[whatsapp-connect] Token exchange URL (sem secret):", tokenUrl.replace(META_APP_SECRET!, "***"));
+    console.log("[whatsapp-connect] Token exchange — app_id:", META_APP_ID, "redirect_uri:", redirectUri);
+    console.log("[whatsapp-connect] Token URL (sem secret):", tokenUrl.replace(META_APP_SECRET!, "***"));
 
     const tokenRes = await fetch(tokenUrl);
     const tokenData = await tokenRes.json();
 
     if (!tokenRes.ok || tokenData.error) {
       const errMsg = tokenData.error?.message || "Erro ao trocar code por token";
-      console.error("[whatsapp-connect] Token exchange FAILED — app_id:", META_APP_ID, "| redirect_uri:", redirectUriUsed, "| sdk_popup:", !!sdk_popup, "| meta_error:", JSON.stringify(tokenData.error || {}));
+      console.error("[whatsapp-connect] Token exchange FAILED:", JSON.stringify({
+        app_id: META_APP_ID,
+        redirect_uri: redirectUri,
+        status: tokenRes.status,
+        meta_error: tokenData.error || tokenData,
+      }));
 
       await supabaseAdmin.from("whatsapp_connections").upsert({
         workspace_id,
@@ -149,7 +136,10 @@ Deno.serve(async (req) => {
         updated_at: new Date().toISOString(),
       }, { onConflict: "workspace_id" });
 
-      return new Response(JSON.stringify({ error: errMsg }), {
+      return new Response(JSON.stringify({
+        error: errMsg,
+        meta_response: tokenData.error || null,
+      }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -171,14 +161,12 @@ Deno.serve(async (req) => {
     let phone_number_id: string | null = null;
     let phone_display: string | null = null;
 
-    // Tentar extrair WABA e número de telefone
     if (wabaListData.data && wabaListData.data.length > 0) {
       for (const business of wabaListData.data) {
         if (business.whatsapp_business_accounts?.data?.length > 0) {
           const waba = business.whatsapp_business_accounts.data[0];
           waba_id = waba.id;
 
-          // Buscar números de telefone da WABA
           const phonesUrl = `https://graph.facebook.com/${META_GRAPH_VERSION}/${waba_id}/phone_numbers?access_token=${accessToken}&fields=id,display_phone_number,verified_name`;
           const phonesRes = await fetch(phonesUrl);
           const phonesData = await phonesRes.json();
@@ -192,12 +180,9 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Calcular expiração do token (padrão 60 dias se long-lived)
     const tokenExpiresAt = new Date();
     tokenExpiresAt.setDate(tokenExpiresAt.getDate() + 60);
 
-    // Persistir no banco com service role (acesso ao token criptografado)
-    // NUNCA expor o token no response
     const { error: upsertError } = await supabaseAdmin.from("whatsapp_connections").upsert({
       workspace_id,
       created_by: user.id,
@@ -219,7 +204,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Retornar apenas dados não sensíveis
     return new Response(JSON.stringify({
       status: phone_number_id ? "connected" : "disconnected",
       waba_id,
