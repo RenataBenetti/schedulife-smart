@@ -168,7 +168,7 @@ export const WhatsAppMetaConnect = ({
 
           supabase.functions
             .invoke("whatsapp-connect", {
-              body: { code, workspace_id: workspaceId },
+              body: { code, workspace_id: workspaceId, sdk_popup: true },
             })
             .then((res) => {
               if (res.error) throw new Error(res.error.message);

@@ -40,7 +40,7 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json();
-    const { code, workspace_id } = body;
+    const { code, workspace_id, sdk_popup, meta_redirect_uri_used } = body;
 
     if (!code || !workspace_id) {
       return new Response(JSON.stringify({ error: "code e workspace_id são obrigatórios" }), {
@@ -104,14 +104,34 @@ Deno.serve(async (req) => {
     }
 
     // Trocar code por access token
+    // When code comes from FB.login() JS SDK popup (sdk_popup=true),
+    // Meta uses xd_arbiter internally — we must NOT send redirect_uri.
+    // When code comes from a redirect-based flow, use the provided or fallback redirect_uri.
     const tokenParams = new URLSearchParams({
       client_id: META_APP_ID,
       client_secret: META_APP_SECRET!,
       code,
-      redirect_uri: META_REDIRECT_URI,
     });
 
+    let redirectUriUsed = "(omitted - SDK popup)";
+    if (sdk_popup) {
+      console.log("[whatsapp-connect] Code from JS SDK popup — skipping redirect_uri in token exchange");
+    } else {
+      const redirectUri = meta_redirect_uri_used || META_REDIRECT_URI;
+      if (!redirectUri) {
+        console.warn("[whatsapp-connect] No redirect_uri available and not SDK popup — this may fail");
+      }
+      if (redirectUri) {
+        tokenParams.set("redirect_uri", redirectUri);
+        redirectUriUsed = redirectUri;
+      }
+      if (!meta_redirect_uri_used && META_REDIRECT_URI) {
+        console.warn("[whatsapp-connect] Using fallback META_REDIRECT_URI secret (frontend did not send meta_redirect_uri_used)");
+      }
+    }
+
     const tokenUrl = `https://graph.facebook.com/${META_GRAPH_VERSION}/oauth/access_token?${tokenParams.toString()}`;
+    console.log("[whatsapp-connect] Token exchange — app_id:", META_APP_ID, "redirect_uri:", redirectUriUsed);
     console.log("[whatsapp-connect] Token exchange URL (sem secret):", tokenUrl.replace(META_APP_SECRET!, "***"));
 
     const tokenRes = await fetch(tokenUrl);
@@ -119,7 +139,7 @@ Deno.serve(async (req) => {
 
     if (!tokenRes.ok || tokenData.error) {
       const errMsg = tokenData.error?.message || "Erro ao trocar code por token";
-      console.error("[whatsapp-connect] Token exchange error:", errMsg, JSON.stringify(tokenData.error || {}));
+      console.error("[whatsapp-connect] Token exchange FAILED — app_id:", META_APP_ID, "| redirect_uri:", redirectUriUsed, "| sdk_popup:", !!sdk_popup, "| meta_error:", JSON.stringify(tokenData.error || {}));
 
       await supabaseAdmin.from("whatsapp_connections").upsert({
         workspace_id,
