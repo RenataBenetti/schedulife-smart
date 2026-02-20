@@ -27,4 +27,16 @@ verify_jwt = false
 [functions.whatsapp-send-test]
 verify_jwt = false
 
+[functions.whatsapp-qr-create]
+verify_jwt = false
+
+[functions.whatsapp-qr-status]
+verify_jwt = false
+
+[functions.whatsapp-qr-send]
+verify_jwt = false
+
+[functions.whatsapp-qr-webhook]
+verify_jwt = false
+
 

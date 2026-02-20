@@ -776,6 +776,47 @@ export type Database = {
         }
         Relationships: []
       }
+      whatsapp_instances_qr: {
+        Row: {
+          created_at: string
+          id: string
+          instance_key: string | null
+          phone_number: string | null
+          qr_code: string | null
+          status: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          instance_key?: string | null
+          phone_number?: string | null
+          qr_code?: string | null
+          status?: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          instance_key?: string | null
+          phone_number?: string | null
+          qr_code?: string | null
+          status?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_instances_qr_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       whatsapp_message_logs: {
         Row: {
           created_at: string
@@ -854,6 +895,7 @@ export type Database = {
           primary_color: string | null
           secondary_color: string | null
           updated_at: string
+          whatsapp_mode: string | null
         }
         Insert: {
           created_at?: string
@@ -864,6 +906,7 @@ export type Database = {
           primary_color?: string | null
           secondary_color?: string | null
           updated_at?: string
+          whatsapp_mode?: string | null
         }
         Update: {
           created_at?: string
@@ -874,6 +917,7 @@ export type Database = {
           primary_color?: string | null
           secondary_color?: string | null
           updated_at?: string
+          whatsapp_mode?: string | null
         }
         Relationships: []
       }
