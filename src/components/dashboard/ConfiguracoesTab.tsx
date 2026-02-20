@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/dialog";
 import { useProfile, useUpdateProfile, useUpdateWorkspace, useSubscription, useGoogleCalendarConfig } from "@/hooks/use-data";
 import { WhatsAppMetaConnect } from "@/components/dashboard/WhatsAppMetaConnect";
+import { WhatsAppQRConnect } from "@/components/dashboard/WhatsAppQRConnect";
 import { useWorkspace } from "@/hooks/use-workspace";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -343,10 +344,29 @@ const ConfiguracoesTab = () => {
               <p className="text-sm text-muted-foreground">Conecte suas ferramentas externas.</p>
             </div>
             <div className="space-y-4">
-              {/* WhatsApp Business (Meta Cloud API) */}
-              <div className="rounded-xl border border-border bg-card p-5 shadow-soft">
+              {/* WhatsApp Oficial (Meta Cloud API) */}
+              <div className="rounded-xl border border-border bg-card p-5 shadow-soft space-y-2">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-primary bg-primary/10 px-2 py-0.5 rounded">Opção 1</span>
+                  <span className="text-xs text-muted-foreground">WhatsApp Oficial (Meta Cloud API) — Indicado para empresas com CNPJ e alto volume</span>
+                </div>
                 {workspace && (
                   <WhatsAppMetaConnect
+                    workspaceId={workspace.id}
+                    compact
+                    onConnected={() => {}}
+                  />
+                )}
+              </div>
+
+              {/* WhatsApp Simples (QR Code) */}
+              <div className="rounded-xl border border-border bg-card p-5 shadow-soft space-y-2">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-accent bg-accent/10 px-2 py-0.5 rounded">Opção 2</span>
+                  <span className="text-xs text-muted-foreground">WhatsApp Simples (QR Code) — Indicado para profissionais autônomos</span>
+                </div>
+                {workspace && (
+                  <WhatsAppQRConnect
                     workspaceId={workspace.id}
                     compact
                     onConnected={() => {}}
