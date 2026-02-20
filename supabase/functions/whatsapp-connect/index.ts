@@ -67,7 +67,7 @@ Deno.serve(async (req) => {
     const META_APP_ID = Deno.env.get("META_APP_ID");
     const META_APP_SECRET = Deno.env.get("META_APP_SECRET");
     const META_GRAPH_VERSION = Deno.env.get("META_GRAPH_VERSION") || "v20.0";
-    const META_REDIRECT_URI = Deno.env.get("META_REDIRECT_URI");
+    const META_REDIRECT_URI = Deno.env.get("META_REDIRECT_URI") || "https://agendix.soriamarketing.com.br/dashboard";
 
     // --- Validação estruturada de configuração ---
     const missing: string[] = [];
@@ -108,10 +108,8 @@ Deno.serve(async (req) => {
       client_id: META_APP_ID,
       client_secret: META_APP_SECRET!,
       code,
+      redirect_uri: META_REDIRECT_URI,
     });
-    if (META_REDIRECT_URI) {
-      tokenParams.set("redirect_uri", META_REDIRECT_URI);
-    }
 
     const tokenUrl = `https://graph.facebook.com/${META_GRAPH_VERSION}/oauth/access_token?${tokenParams.toString()}`;
     console.log("[whatsapp-connect] Token exchange URL (sem secret):", tokenUrl.replace(META_APP_SECRET!, "***"));
