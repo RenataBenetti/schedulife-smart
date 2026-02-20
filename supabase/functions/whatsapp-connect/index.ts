@@ -64,20 +64,65 @@ Deno.serve(async (req) => {
       });
     }
 
-    const META_APP_ID = Deno.env.get("META_APP_ID")!;
-    const META_APP_SECRET = Deno.env.get("META_APP_SECRET")!;
+    const META_APP_ID = Deno.env.get("META_APP_ID");
+    const META_APP_SECRET = Deno.env.get("META_APP_SECRET");
     const META_GRAPH_VERSION = Deno.env.get("META_GRAPH_VERSION") || "v20.0";
+    const META_REDIRECT_URI = Deno.env.get("META_REDIRECT_URI");
+
+    // --- Validação estruturada de configuração ---
+    const missing: string[] = [];
+    if (!META_APP_ID) missing.push("META_APP_ID");
+    if (!META_APP_SECRET) missing.push("META_APP_SECRET");
+    if (!META_GRAPH_VERSION) missing.push("META_GRAPH_VERSION");
+
+    console.log("[whatsapp-connect] Config check:", JSON.stringify({
+      app_id_used: META_APP_ID || "(not set)",
+      app_id_expected: "960475733312726",
+      app_id_matches: META_APP_ID === "960475733312726",
+      secret_defined: !!META_APP_SECRET,
+      redirect_uri: META_REDIRECT_URI || "(not set)",
+      graph_version: META_GRAPH_VERSION,
+    }));
+
+    if (missing.length > 0) {
+      console.error("[whatsapp-connect] META_CONFIG_INVALID, missing:", missing);
+      return new Response(JSON.stringify({ error: "META_CONFIG_INVALID", missing }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (META_APP_ID !== "960475733312726") {
+      console.error("[whatsapp-connect] META_APP_ID mismatch:", META_APP_ID);
+      return new Response(JSON.stringify({
+        error: "META_CONFIG_INVALID",
+        detail: "META_APP_ID não corresponde ao esperado (960475733312726)",
+      }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     // Trocar code por access token
-    const tokenUrl = `https://graph.facebook.com/${META_GRAPH_VERSION}/oauth/access_token?client_id=${META_APP_ID}&client_secret=${META_APP_SECRET}&code=${code}`;
+    const tokenParams = new URLSearchParams({
+      client_id: META_APP_ID,
+      client_secret: META_APP_SECRET!,
+      code,
+    });
+    if (META_REDIRECT_URI) {
+      tokenParams.set("redirect_uri", META_REDIRECT_URI);
+    }
+
+    const tokenUrl = `https://graph.facebook.com/${META_GRAPH_VERSION}/oauth/access_token?${tokenParams.toString()}`;
+    console.log("[whatsapp-connect] Token exchange URL (sem secret):", tokenUrl.replace(META_APP_SECRET!, "***"));
+
     const tokenRes = await fetch(tokenUrl);
     const tokenData = await tokenRes.json();
 
     if (!tokenRes.ok || tokenData.error) {
       const errMsg = tokenData.error?.message || "Erro ao trocar code por token";
-      console.error("Token exchange error:", errMsg);
+      console.error("[whatsapp-connect] Token exchange error:", errMsg, JSON.stringify(tokenData.error || {}));
 
-      // Registrar erro sem expor detalhes do token
       await supabaseAdmin.from("whatsapp_connections").upsert({
         workspace_id,
         created_by: user.id,
