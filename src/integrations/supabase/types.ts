@@ -853,6 +853,100 @@ export type Database = {
         }
         Relationships: []
       }
+      whatsapp_outbox: {
+        Row: {
+          attempts: number
+          created_at: string
+          id: string
+          instance_name: string
+          last_error: string | null
+          message_text: string
+          payment_link: string | null
+          scheduled_for: string
+          sent_at: string | null
+          status: string
+          to_phone: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          id?: string
+          instance_name: string
+          last_error?: string | null
+          message_text: string
+          payment_link?: string | null
+          scheduled_for?: string
+          sent_at?: string | null
+          status?: string
+          to_phone: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          id?: string
+          instance_name?: string
+          last_error?: string | null
+          message_text?: string
+          payment_link?: string | null
+          scheduled_for?: string
+          sent_at?: string | null
+          status?: string
+          to_phone?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_outbox_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_settings: {
+        Row: {
+          created_at: string
+          daily_limit: number
+          id: string
+          send_delay_seconds: number
+          timezone: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          daily_limit?: number
+          id?: string
+          send_delay_seconds?: number
+          timezone?: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          daily_limit?: number
+          id?: string
+          send_delay_seconds?: number
+          timezone?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_settings_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: true
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       workspace_members: {
         Row: {
           created_at: string
