@@ -416,6 +416,8 @@ export type Database = {
           id: string
           message_type: string
           name: string
+          payment_link_id: string | null
+          payment_link_override: string | null
           updated_at: string
           workspace_id: string
         }
@@ -425,6 +427,8 @@ export type Database = {
           id?: string
           message_type?: string
           name: string
+          payment_link_id?: string | null
+          payment_link_override?: string | null
           updated_at?: string
           workspace_id: string
         }
@@ -434,10 +438,19 @@ export type Database = {
           id?: string
           message_type?: string
           name?: string
+          payment_link_id?: string | null
+          payment_link_override?: string | null
           updated_at?: string
           workspace_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "message_templates_payment_link_id_fkey"
+            columns: ["payment_link_id"]
+            isOneToOne: false
+            referencedRelation: "payment_links"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "message_templates_workspace_id_fkey"
             columns: ["workspace_id"]
@@ -456,7 +469,12 @@ export type Database = {
           description: string | null
           external_link: string | null
           id: string
+          is_default: boolean
+          name: string | null
           paid: boolean
+          type: string
+          updated_at: string
+          url: string | null
           workspace_id: string
         }
         Insert: {
@@ -467,7 +485,12 @@ export type Database = {
           description?: string | null
           external_link?: string | null
           id?: string
+          is_default?: boolean
+          name?: string | null
           paid?: boolean
+          type?: string
+          updated_at?: string
+          url?: string | null
           workspace_id: string
         }
         Update: {
@@ -478,7 +501,12 @@ export type Database = {
           description?: string | null
           external_link?: string | null
           id?: string
+          is_default?: boolean
+          name?: string | null
           paid?: boolean
+          type?: string
+          updated_at?: string
+          url?: string | null
           workspace_id?: string
         }
         Relationships: [

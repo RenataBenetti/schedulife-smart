@@ -48,6 +48,7 @@ import {
   type RuleInput,
   type TemplateInput,
 } from "@/hooks/use-message-templates";
+import { useGenericPaymentLinks } from "@/hooks/use-payment-links";
 import type { Database } from "@/integrations/supabase/types";
 import { toast } from "sonner";
 
@@ -78,6 +79,8 @@ interface FormState {
   body: string;
   message_type: "text" | "payment_link";
   rules: RuleInput[];
+  payment_link_id: string | null;
+  payment_link_override: string;
 }
 
 const defaultForm: FormState = {
@@ -85,11 +88,14 @@ const defaultForm: FormState = {
   body: "",
   message_type: "text",
   rules: [{ ...emptyRule }],
+  payment_link_id: null,
+  payment_link_override: "",
 };
 
 const MensagensTab = () => {
   const { data: workspace } = useWorkspace();
   const { data: templates, isLoading } = useMessageTemplates(workspace?.id);
+  const { data: paymentLinks } = useGenericPaymentLinks(workspace?.id);
   const addMutation = useAddMessageTemplate();
   const updateMutation = useUpdateMessageTemplate();
   const deleteMutation = useDeleteMessageTemplate();
@@ -123,6 +129,8 @@ const MensagensTab = () => {
       body: tpl.body,
       message_type: (tpl as any).message_type ?? "text",
       rules: rules.length > 0 ? rules : [{ ...emptyRule }],
+      payment_link_id: (tpl as any).payment_link_id ?? null,
+      payment_link_override: (tpl as any).payment_link_override ?? "",
     });
     setDialogOpen(true);
   };
@@ -158,6 +166,8 @@ const MensagensTab = () => {
         body: form.body.trim(),
         message_type: form.message_type,
         rules: form.rules,
+        payment_link_id: form.message_type === "payment_link" ? form.payment_link_id : null,
+        payment_link_override: form.message_type === "payment_link" ? form.payment_link_override.trim() : "",
       };
       if (editingId) {
         await updateMutation.mutateAsync({ ...payload, id: editingId });
@@ -334,6 +344,62 @@ const MensagensTab = () => {
                 </div>
               </RadioGroup>
             </div>
+
+            {/* Payment link selection - only when type is payment_link */}
+            {form.message_type === "payment_link" && (
+              <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-3">
+                <Label className="text-sm font-medium">Link de pagamento</Label>
+                
+                {(paymentLinks ?? []).length > 0 && (
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Selecionar link cadastrado</Label>
+                    <Select
+                      value={form.payment_link_id ?? "none"}
+                      onValueChange={(v) =>
+                        setForm((f) => ({
+                          ...f,
+                          payment_link_id: v === "none" ? null : v,
+                          payment_link_override: v === "none" ? f.payment_link_override : "",
+                        }))
+                      }
+                    >
+                      <SelectTrigger className="h-9">
+                        <SelectValue placeholder="Selecione um link" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Nenhum (usar link manual)</SelectItem>
+                        {(paymentLinks ?? []).map((link) => (
+                          <SelectItem key={link.id} value={link.id}>
+                            {link.name} ({link.type.toUpperCase()})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {!form.payment_link_id && (
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">
+                      {(paymentLinks ?? []).length > 0 ? "Ou cole um link manual" : "Cole o link de pagamento"}
+                    </Label>
+                    <Input
+                      value={form.payment_link_override}
+                      onChange={(e) => setForm((f) => ({ ...f, payment_link_override: e.target.value }))}
+                      placeholder="https://..."
+                      type="url"
+                    />
+                  </div>
+                )}
+
+                <p className="text-xs text-muted-foreground">
+                  O link será incluído na mensagem via a variável {"{{link_pagamento}}"}.
+                  {!form.payment_link_id && !form.payment_link_override && (
+                    <span className="text-accent"> Cadastre links em Configurações → Links de Pagamento.</span>
+                  )}
+                </p>
+              </div>
+            )}
 
             <div>
               <Label>Corpo da mensagem</Label>
