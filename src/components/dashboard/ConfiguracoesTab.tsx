@@ -11,6 +11,7 @@ import {
   Calendar,
   Loader2,
   Upload,
+  Link as LinkIcon,
 } from "lucide-react";
 import {
   Dialog,
@@ -23,6 +24,7 @@ import { useProfile, useUpdateProfile, useUpdateWorkspace, useSubscription, useG
 import { WhatsAppMetaConnect } from "@/components/dashboard/WhatsAppMetaConnect";
 import { WhatsAppQRConnect } from "@/components/dashboard/WhatsAppQRConnect";
 import { FEATURE_FLAGS } from "@/lib/feature-flags";
+import { PaymentLinksManager } from "@/components/dashboard/PaymentLinksManager";
 import { useWorkspace } from "@/hooks/use-workspace";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -34,6 +36,7 @@ const sections = [
 { id: "marca", label: "Marca", icon: Palette },
 { id: "notificacoes", label: "Notificações", icon: Bell },
 { id: "integracoes", label: "Integrações", icon: Calendar },
+{ id: "pagamentos", label: "Links de Pagamento", icon: LinkIcon },
 { id: "plano", label: "Plano", icon: CreditCard }];
 
 
@@ -419,6 +422,12 @@ const ConfiguracoesTab = () => {
             </Dialog>
           </div>
         }
+
+        {activeSection === "pagamentos" && workspace && (
+          <div className="space-y-6">
+            <PaymentLinksManager workspaceId={workspace.id} />
+          </div>
+        )}
 
         {activeSection === "plano" && (() => {
           const MONTHLY_LINK = "https://www.asaas.com/c/tiyjqqddhp6pjeva";

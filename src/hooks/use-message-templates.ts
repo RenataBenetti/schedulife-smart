@@ -18,6 +18,8 @@ export interface TemplateInput {
   body: string;
   message_type: "text" | "payment_link";
   rules: RuleInput[];
+  payment_link_id?: string | null;
+  payment_link_override?: string;
 }
 
 export const useAddMessageTemplate = () => {
@@ -25,9 +27,17 @@ export const useAddMessageTemplate = () => {
   return useMutation({
     mutationFn: async (input: TemplateInput) => {
       const { rules, ...tpl } = input;
+      const insertData = {
+        workspace_id: tpl.workspace_id,
+        name: tpl.name,
+        body: tpl.body,
+        message_type: tpl.message_type,
+        payment_link_id: tpl.payment_link_id ?? null,
+        payment_link_override: tpl.payment_link_override ?? null,
+      };
       const { data, error } = await supabase
         .from("message_templates")
-        .insert(tpl as any)
+        .insert(insertData as any)
         .select()
         .single();
       if (error) throw error;
@@ -57,9 +67,16 @@ export const useUpdateMessageTemplate = () => {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, workspace_id, rules, ...updates }: TemplateInput & { id: string }) => {
+      const updateData = {
+        name: updates.name,
+        body: updates.body,
+        message_type: updates.message_type,
+        payment_link_id: updates.payment_link_id ?? null,
+        payment_link_override: updates.payment_link_override ?? null,
+      };
       const { error } = await supabase
         .from("message_templates")
-        .update(updates as any)
+        .update(updateData as any)
         .eq("id", id);
       if (error) throw error;
 
