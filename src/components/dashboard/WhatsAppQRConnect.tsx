@@ -194,25 +194,20 @@ export const WhatsAppQRConnect = ({
         </p>
       </div>
 
-      {/* Warning */}
-      <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 space-y-2">
+      {/* Tip */}
+      <div className="rounded-lg border border-accent/30 bg-accent/5 p-4 space-y-2">
         <div className="flex items-start gap-2">
-          <AlertTriangle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+          <AlertTriangle className="h-5 w-5 text-accent shrink-0 mt-0.5" />
           <div>
-            <p className="text-sm font-semibold text-foreground">⚠️ Importante antes de conectar</p>
+            <p className="text-sm font-semibold text-foreground">Dica importante 💡</p>
             <p className="text-sm text-muted-foreground mt-1">
-              Recomendamos fortemente utilizar um número exclusivo para uso profissional.
+              Para uso profissional, recomendamos conectar um número separado do seu WhatsApp pessoal,
+              de preferência no <strong>WhatsApp Business</strong> (chip exclusivo). Isso evita misturar
+              conversas pessoais com clientes e reduz risco de bloqueios.
             </p>
           </div>
         </div>
-        <ul className="text-sm text-muted-foreground ml-7 space-y-1 list-disc">
-          <li>Utilize um chip separado.</li>
-          <li>Use WhatsApp Business (não o WhatsApp pessoal).</li>
-          <li>Evite conectar seu número pessoal.</li>
-          <li>Não utilize o mesmo número para uso familiar.</li>
-        </ul>
         <p className="text-xs text-muted-foreground ml-7 mt-2">
-          Isso garante mais segurança, estabilidade e reduz o risco de bloqueios.
           Ao conectar, você concorda que o uso é de sua responsabilidade.
         </p>
       </div>
