@@ -78,7 +78,11 @@ export const WhatsAppQRConnect = ({
       if (res.error) throw new Error(res.error.message);
       if (res.data?.error) throw new Error(res.data.error);
 
-      if (res.data?.qr) {
+      if (res.data?.already_connected) {
+        setStatus("connected");
+        toast({ title: "WhatsApp já está conectado! ✅", description: "Use o teste de mensagem para verificar." });
+        onConnected?.();
+      } else if (res.data?.qr) {
         setQrCode(res.data.qr);
         setStatus("connecting");
 
@@ -152,31 +156,49 @@ export const WhatsAppQRConnect = ({
 
   if (compact) {
     return (
-      <div className="flex items-center gap-3">
-        {isConnected ? (
-          <>
-            <CheckCircle2 className="h-4 w-4 text-accent shrink-0" />
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-foreground">WhatsApp QR Code</p>
-              <p className="text-xs text-accent truncate">{phoneNumber || "Conectado"}</p>
+      <div className="space-y-3">
+        <div className="flex items-center gap-3">
+          {isConnected ? (
+            <>
+              <CheckCircle2 className="h-4 w-4 text-accent shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-foreground">WhatsApp QR Code</p>
+                <p className="text-xs text-accent truncate">{phoneNumber || "Conectado"}</p>
+              </div>
+              <Button variant="outline" size="sm" onClick={handleCreate} disabled={creating}>
+                {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                Reconectar
+              </Button>
+            </>
+          ) : (
+            <>
+              <XCircle className="h-4 w-4 text-muted-foreground shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-foreground">WhatsApp QR Code</p>
+                <p className="text-xs text-muted-foreground truncate">Não conectado</p>
+              </div>
+              <Button variant="hero" size="sm" onClick={handleCreate} disabled={creating}>
+                {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Smartphone className="h-4 w-4" />}
+                Conectar
+              </Button>
+            </>
+          )}
+        </div>
+
+        {qrCode && (
+          <div className="flex flex-col items-center gap-3 rounded-xl border-2 border-accent/30 bg-accent/5 p-4">
+            <img src={qrCode} alt="QR Code WhatsApp" className="h-48 w-48 rounded-lg" />
+            <div className="text-center">
+              <p className="text-sm font-medium text-foreground">Escaneie com seu WhatsApp</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Abra o WhatsApp → Dispositivos conectados → Conectar
+              </p>
             </div>
-            <Button variant="outline" size="sm" onClick={handleCreate} disabled={creating}>
-              {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-              Reconectar
-            </Button>
-          </>
-        ) : (
-          <>
-            <XCircle className="h-4 w-4 text-muted-foreground shrink-0" />
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-foreground">WhatsApp QR Code</p>
-              <p className="text-xs text-muted-foreground truncate">Não conectado</p>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted rounded-lg px-3 py-2 w-full justify-center">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              Aguardando escaneamento...
             </div>
-            <Button variant="hero" size="sm" onClick={handleCreate} disabled={creating}>
-              {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Smartphone className="h-4 w-4" />}
-              Conectar
-            </Button>
-          </>
+          </div>
         )}
       </div>
     );
