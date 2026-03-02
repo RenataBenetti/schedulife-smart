@@ -95,7 +95,6 @@ Deno.serve(async (req) => {
       } else {
         const errText = await stateRes.text();
         console.log(`[whatsapp-qr-create] connectionState returned ${stateRes.status}: ${errText}`);
-        // Treat as non-existent to try creating
         instanceExists = false;
       }
     } catch (e) {
@@ -103,20 +102,36 @@ Deno.serve(async (req) => {
       instanceExists = false;
     }
 
-    // Step 2: If connected, logout first
+    // Step 2: If connected, delete the instance entirely and recreate
+    // Logout often fails with 500, so we delete + recreate for reliability
     if (instanceExists && instanceConnected) {
-      console.log(`[whatsapp-qr-create] Instance is connected, logging out first...`);
+      console.log(`[whatsapp-qr-create] Instance is connected, deleting to force new QR...`);
       try {
-        const logoutRes = await fetch(`${baseUrl}/instance/logout/${instanceName}`, {
+        // Use only apikey header for delete (no Content-Type needed)
+        const deleteHeaders = { "apikey": EVOLUTION_API_KEY };
+        const deleteRes = await fetch(`${baseUrl}/instance/delete/${instanceName}`, {
           method: "DELETE",
-          headers,
+          headers: deleteHeaders,
         });
-        const logoutData = await logoutRes.text();
-        console.log(`[whatsapp-qr-create] Logout response (${logoutRes.status}):`, logoutData);
-        // Brief wait for logout to take effect
-        await new Promise((r) => setTimeout(r, 1500));
+        const deleteData = await deleteRes.text();
+        console.log(`[whatsapp-qr-create] Delete response (${deleteRes.status}):`, deleteData);
+        if (deleteRes.ok) {
+          // Wait for deletion to take effect
+          await new Promise((r) => setTimeout(r, 2000));
+          instanceExists = false;
+        } else {
+          // Try logout as fallback
+          console.log(`[whatsapp-qr-create] Delete failed, trying logout...`);
+          const logoutRes = await fetch(`${baseUrl}/instance/logout/${instanceName}`, {
+            method: "DELETE",
+            headers: deleteHeaders,
+          });
+          const logoutData = await logoutRes.text();
+          console.log(`[whatsapp-qr-create] Logout response (${logoutRes.status}):`, logoutData);
+          await new Promise((r) => setTimeout(r, 2000));
+        }
       } catch (e) {
-        console.error(`[whatsapp-qr-create] Logout error:`, e);
+        console.error(`[whatsapp-qr-create] Delete/Logout error:`, e);
       }
     }
 
@@ -137,11 +152,9 @@ Deno.serve(async (req) => {
       console.log(`[whatsapp-qr-create] Create response (${createRes.status}):`, JSON.stringify(createData));
 
       if (!createRes.ok) {
-        // Check if it's "already in use" - treat as existing
         const msg = JSON.stringify(createData).toLowerCase();
         if (createRes.status === 403 && msg.includes("already in use")) {
           console.log(`[whatsapp-qr-create] Instance already exists (403), proceeding to connect`);
-          instanceExists = true;
         } else {
           return new Response(JSON.stringify({
             error: "Erro ao criar instância no servidor WhatsApp",
@@ -152,6 +165,9 @@ Deno.serve(async (req) => {
           });
         }
       }
+
+      // Wait a moment for instance to be ready
+      await new Promise((r) => setTimeout(r, 1000));
     }
 
     // Step 4: Get QR code via connect
@@ -174,13 +190,27 @@ Deno.serve(async (req) => {
       qrSrc = qrBase64.startsWith("data:") ? qrBase64 : `data:image/png;base64,${qrBase64}`;
     }
 
+    // If instance is still "open" and no QR, it means deletion didn't work
+    if (!qrSrc && connectData?.instance?.state === "open") {
+      console.log(`[whatsapp-qr-create] Instance still open after delete attempt, returning connected status`);
+      return new Response(JSON.stringify({
+        success: true,
+        instance_key: instanceName,
+        qr: null,
+        already_connected: true,
+        debug_connect_response: connectData,
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // Upsert instance record
     const { error: dbError } = await supabaseAdmin
       .from("whatsapp_instances_qr")
       .upsert({
         workspace_id,
         instance_key: instanceName,
-        status: "connecting",
+        status: qrSrc ? "connecting" : "disconnected",
         qr_code: qrSrc,
       }, { onConflict: "workspace_id" });
 
