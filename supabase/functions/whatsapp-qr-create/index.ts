@@ -76,27 +76,103 @@ Deno.serve(async (req) => {
     const instanceName = `agendix-${workspace_id.substring(0, 8)}`;
     const headers = { "apikey": EVOLUTION_API_KEY, "Content-Type": "application/json" };
 
-    // Try to create instance
-    console.log(`[whatsapp-qr-create] Creating instance: ${instanceName}`);
-    const createRes = await fetch(`${baseUrl}/instance/create`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        instanceName,
-        integration: "WHATSAPP-BAILEYS",
-        qrcode: true,
-      }),
-    });
+    // Step 1: Check if instance already exists
+    console.log(`[whatsapp-qr-create] Checking connection state for: ${instanceName}`);
+    let instanceExists = false;
+    let instanceConnected = false;
 
-    const createData = await createRes.json();
-    console.log(`[whatsapp-qr-create] Create response:`, JSON.stringify(createData));
+    try {
+      const stateRes = await fetch(`${baseUrl}/instance/connectionState/${instanceName}`, { headers });
+      if (stateRes.ok) {
+        const stateData = await stateRes.json();
+        console.log(`[whatsapp-qr-create] Connection state:`, JSON.stringify(stateData));
+        instanceExists = true;
+        const state = stateData?.instance?.state ?? stateData?.state ?? "";
+        instanceConnected = state === "open";
+      } else if (stateRes.status === 404) {
+        console.log(`[whatsapp-qr-create] Instance does not exist yet`);
+        instanceExists = false;
+      } else {
+        const errText = await stateRes.text();
+        console.log(`[whatsapp-qr-create] connectionState returned ${stateRes.status}: ${errText}`);
+        // Treat as non-existent to try creating
+        instanceExists = false;
+      }
+    } catch (e) {
+      console.error(`[whatsapp-qr-create] Error checking state:`, e);
+      instanceExists = false;
+    }
 
-    // Get QR code
+    // Step 2: If connected, logout first
+    if (instanceExists && instanceConnected) {
+      console.log(`[whatsapp-qr-create] Instance is connected, logging out first...`);
+      try {
+        const logoutRes = await fetch(`${baseUrl}/instance/logout/${instanceName}`, {
+          method: "DELETE",
+          headers,
+        });
+        const logoutData = await logoutRes.text();
+        console.log(`[whatsapp-qr-create] Logout response (${logoutRes.status}):`, logoutData);
+        // Brief wait for logout to take effect
+        await new Promise((r) => setTimeout(r, 1500));
+      } catch (e) {
+        console.error(`[whatsapp-qr-create] Logout error:`, e);
+      }
+    }
+
+    // Step 3: If instance doesn't exist, create it
+    if (!instanceExists) {
+      console.log(`[whatsapp-qr-create] Creating instance: ${instanceName}`);
+      const createRes = await fetch(`${baseUrl}/instance/create`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          instanceName,
+          integration: "WHATSAPP-BAILEYS",
+          qrcode: true,
+        }),
+      });
+
+      const createData = await createRes.json();
+      console.log(`[whatsapp-qr-create] Create response (${createRes.status}):`, JSON.stringify(createData));
+
+      if (!createRes.ok) {
+        // Check if it's "already in use" - treat as existing
+        const msg = JSON.stringify(createData).toLowerCase();
+        if (createRes.status === 403 && msg.includes("already in use")) {
+          console.log(`[whatsapp-qr-create] Instance already exists (403), proceeding to connect`);
+          instanceExists = true;
+        } else {
+          return new Response(JSON.stringify({
+            error: "Erro ao criar instância no servidor WhatsApp",
+            details: createData,
+          }), {
+            status: 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+      }
+    }
+
+    // Step 4: Get QR code via connect
+    console.log(`[whatsapp-qr-create] Fetching QR via /instance/connect/${instanceName}`);
     const connectRes = await fetch(`${baseUrl}/instance/connect/${instanceName}`, { headers });
     const connectData = await connectRes.json();
+    console.log(`[whatsapp-qr-create] Connect response (${connectRes.status}):`, JSON.stringify(connectData));
 
-    const qrBase64 = connectData?.base64 ?? connectData?.qrcode?.base64 ?? connectData?.qrCode ?? null;
-    const qrSrc = qrBase64 ? (qrBase64.startsWith("data:") ? qrBase64 : `data:image/png;base64,${qrBase64}`) : null;
+    // Step 5: Parse QR from multiple possible formats
+    const qrBase64 =
+      connectData?.base64 ??
+      connectData?.qrcode?.base64 ??
+      connectData?.qrCode ??
+      connectData?.code ??
+      connectData?.pairingCode ??
+      null;
+
+    let qrSrc: string | null = null;
+    if (qrBase64) {
+      qrSrc = qrBase64.startsWith("data:") ? qrBase64 : `data:image/png;base64,${qrBase64}`;
+    }
 
     // Upsert instance record
     const { error: dbError } = await supabaseAdmin
@@ -116,7 +192,7 @@ Deno.serve(async (req) => {
       success: true,
       instance_key: instanceName,
       qr: qrSrc,
-      raw_create: createData,
+      debug_connect_response: connectData,
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
