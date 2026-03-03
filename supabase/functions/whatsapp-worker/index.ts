@@ -108,7 +108,8 @@ Deno.serve(async (req) => {
         }
 
         // 5. Send via Evolution API
-        const phone = msg.to_phone.replace(/\D/g, "");
+        const cleanPhone = msg.to_phone.replace(/\D/g, "");
+        const phone = cleanPhone.startsWith("55") ? cleanPhone : `55${cleanPhone}`;
         const sendRes = await fetch(
           `${baseUrl}/message/sendText/${msg.instance_name}`,
           {
