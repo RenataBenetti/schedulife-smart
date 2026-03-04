@@ -159,8 +159,8 @@ export const HeroSection = () => {
                   {[
                     { label: "Sessões hoje", value: "4", sub: "2 confirmadas", color: "text-primary" },
                     { label: "Pendentes", value: "2", sub: "Aguardando", color: "text-secondary" },
-                    { label: "Pag. pendentes", value: "R$ 480", sub: "3 em aberto", color: "text-destructive" },
-                    { label: "Templates", value: "5", sub: "Mensagens ativas", color: "text-accent" },
+                    { label: "Pagamentos hoje", value: "R$ 480", sub: "3 a receber", color: "text-destructive" },
+                    { label: "Mensagens hoje", value: "5", sub: "Programadas", color: "text-accent" },
                   ].map(({ label, value, sub, color }) => (
                     <div key={label} className="rounded-lg border border-border bg-card p-3 shadow-sm">
                       <div className="text-[9px] text-muted-foreground mb-1">{label}</div>
@@ -170,39 +170,72 @@ export const HeroSection = () => {
                   ))}
                 </div>
 
-                {/* Sessions table */}
+                {/* Daily overview cards */}
                 <div className="px-5 pt-4 flex-1 overflow-hidden">
-                  <div className="rounded-lg border border-border bg-card overflow-hidden">
-                    <div className="px-4 py-2.5 border-b border-border">
-                      <span className="text-xs font-semibold text-foreground">Sessões de hoje</span>
-                    </div>
-                    {/* Table header */}
-                    <div className="grid grid-cols-4 px-4 py-1.5 bg-muted/40 text-[9px] text-muted-foreground font-medium">
-                      <span>Cliente</span>
-                      <span>Horário</span>
-                      <span>Tipo</span>
-                      <span>Status</span>
-                    </div>
-                    {/* Rows */}
-                    {[
-                      { name: "ZE", initial: "Z", time: "12:00", type: "Consulta", status: "Agendado", statusColor: "bg-secondary/15 text-secondary" },
-                      { name: "Susane Oliveira", initial: "S", time: "15:00", type: "Retorno", status: "Agendado", statusColor: "bg-secondary/15 text-secondary" },
-                      { name: "Carlos Mendes", initial: "C", time: "17:30", type: "Consulta", status: "Confirmado", statusColor: "bg-accent/15 text-accent" },
-                    ].map(({ name, initial, time, type, status, statusColor }) => (
-                      <div key={name} className="grid grid-cols-4 px-4 py-2.5 border-b border-border/50 last:border-0 items-center">
-                        <div className="flex items-center gap-2">
-                          <div className="h-5 w-5 rounded-full bg-primary/15 flex items-center justify-center text-[9px] font-bold text-primary shrink-0">
-                            {initial}
-                          </div>
-                          <span className="text-[10px] text-foreground truncate">{name}</span>
-                        </div>
-                        <span className="text-[10px] text-foreground">{time}</span>
-                        <span className="text-[10px] text-muted-foreground">{type}</span>
-                        <span className={`inline-flex w-fit items-center rounded-full px-2 py-0.5 text-[9px] font-medium ${statusColor}`}>
-                          {status}
-                        </span>
+                  <div className="grid grid-cols-3 gap-3 h-full">
+                    <div className="rounded-lg border border-border bg-card overflow-hidden">
+                      <div className="px-3 py-2 border-b border-border">
+                        <span className="text-[10px] font-semibold text-foreground">Sessões de hoje</span>
                       </div>
-                    ))}
+                      <div className="divide-y divide-border">
+                        {[
+                          { name: "ZE", initial: "Z", time: "12:00", status: "Agendado", statusColor: "bg-secondary/15 text-secondary" },
+                          { name: "Susane Oliveira", initial: "S", time: "15:00", status: "Agendado", statusColor: "bg-secondary/15 text-secondary" },
+                          { name: "Carlos Mendes", initial: "C", time: "17:30", status: "Confirmado", statusColor: "bg-accent/15 text-accent" },
+                        ].map(({ name, initial, time, status, statusColor }) => (
+                          <div key={name} className="flex items-center justify-between px-3 py-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="text-[9px] font-mono text-muted-foreground w-8">{time}</span>
+                              <div className="h-5 w-5 rounded-full bg-primary/15 flex items-center justify-center text-[9px] font-bold text-primary shrink-0">
+                                {initial}
+                              </div>
+                              <span className="text-[10px] text-foreground truncate">{name}</span>
+                            </div>
+                            <span className={`text-[8px] px-2 py-0.5 rounded-full ${statusColor}`}>{status}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="rounded-lg border border-border bg-card overflow-hidden">
+                      <div className="px-3 py-2 border-b border-border">
+                        <span className="text-[10px] font-semibold text-foreground">Pagamentos hoje</span>
+                      </div>
+                      <div className="divide-y divide-border">
+                        {[
+                          { name: "João D.", time: "Hoje", value: "R$ 120" },
+                          { name: "Clara M.", time: "Hoje", value: "R$ 180" },
+                          { name: "Daniela R.", time: "Hoje", value: "R$ 180" },
+                        ].map(({ name, time, value }) => (
+                          <div key={name} className="flex items-center justify-between px-3 py-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="text-[9px] font-mono text-muted-foreground w-8">{time}</span>
+                              <span className="text-[10px] text-foreground truncate">{name}</span>
+                            </div>
+                            <span className="text-[9px] font-semibold text-secondary">{value}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="rounded-lg border border-border bg-card overflow-hidden">
+                      <div className="px-3 py-2 border-b border-border">
+                        <span className="text-[10px] font-semibold text-foreground">Mensagens hoje</span>
+                      </div>
+                      <div className="divide-y divide-border">
+                        {[
+                          { name: "Confirmação", time: "09:00", client: "ZE" },
+                          { name: "Lembrete", time: "13:30", client: "Susane" },
+                          { name: "Pós-sessão", time: "18:10", client: "Carlos" },
+                        ].map(({ name, time, client }) => (
+                          <div key={name} className="flex items-center justify-between px-3 py-2">
+                            <div className="min-w-0">
+                              <div className="text-[9px] font-mono text-muted-foreground">{time}</div>
+                              <div className="text-[10px] text-foreground truncate">{name}</div>
+                              <div className="text-[9px] text-muted-foreground truncate">{client}</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
