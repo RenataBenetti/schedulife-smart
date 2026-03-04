@@ -35,11 +35,16 @@ Deno.serve(async (req) => {
       const connected = state === "open";
       const newStatus = connected ? "connected" : "disconnected";
 
+      // Extract phone number from webhook payload when connected
+      const rawPhone = body?.data?.me?.id ?? body?.data?.wuid ?? null;
+      const phoneNumber = rawPhone ? rawPhone.replace(/@.*$/, "").replace(/\D/g, "") : null;
+
       const { error } = await supabaseAdmin
         .from("whatsapp_instances_qr")
         .update({
           status: newStatus,
           qr_code: connected ? null : undefined,
+          ...(phoneNumber ? { phone_number: phoneNumber } : {}),
         })
         .eq("instance_key", instanceName);
 
