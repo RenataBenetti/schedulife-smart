@@ -16,12 +16,13 @@ import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useWorkspace } from "@/hooks/use-workspace";
 import { useAppointments, useClients, usePaymentLinks, useMessageTemplates } from "@/hooks/use-data";
-import { format, isToday } from "date-fns";
+import { addDays, addHours, addMinutes, format, isToday } from "date-fns";
 import ClientesTab from "@/components/dashboard/ClientesTab";
 import AgendamentosTab from "@/components/dashboard/AgendamentosTab";
 import PagamentosTab from "@/components/dashboard/PagamentosTab";
 import MensagensTab from "@/components/dashboard/MensagensTab";
 import ConfiguracoesTab from "@/components/dashboard/ConfiguracoesTab";
+import type { Database } from "@/integrations/supabase/types";
 
 const statusMap: Record<string, { label: string; className: string }> = {
   confirmed: { label: "Confirmado", className: "bg-accent/10 text-accent" },
@@ -31,6 +32,23 @@ const statusMap: Record<string, { label: string; className: string }> = {
   completed: { label: "Concluído", className: "bg-accent/10 text-accent" },
   no_show: { label: "Faltou", className: "bg-destructive/10 text-destructive" },
 };
+
+type AppointmentWithClient = Database["public"]["Tables"]["appointments"]["Row"] & {
+  clients?: { full_name?: string | null } | null;
+};
+
+type PaymentLinkWithClient = Database["public"]["Tables"]["payment_links"]["Row"] & {
+  clients?: { full_name?: string | null } | null;
+};
+
+type MessageRule = Database["public"]["Tables"]["message_rules"]["Row"];
+
+type MessageTemplateWithRules = Database["public"]["Tables"]["message_templates"]["Row"] & {
+  message_rules?: MessageRule[] | null;
+};
+
+const DEFAULT_OFFSET_UNIT: MessageRule["offset_unit"] = "horas";
+const VALID_OFFSET_UNITS = new Set<MessageRule["offset_unit"]>(["minutos", "horas", "dias"]);
 
 const tabs = [
   { icon: Calendar, label: "Dashboard", id: "dashboard", subtitle: "Visão geral do seu dia" },
@@ -217,13 +235,94 @@ const DashboardContent = () => {
   const { data: workspace } = useWorkspace();
   const { data: appointments, isLoading: aptsLoading } = useAppointments(workspace?.id);
   const { data: clients } = useClients(workspace?.id);
-  const { data: payments } = usePaymentLinks(workspace?.id);
-  const { data: templates } = useMessageTemplates(workspace?.id);
+  const { data: payments, isLoading: paymentsLoading } = usePaymentLinks(workspace?.id);
+  const { data: templates, isLoading: templatesLoading } = useMessageTemplates(workspace?.id);
 
-  const todayAppointments = (appointments ?? []).filter((a) => isToday(new Date(a.starts_at)));
+  const typedAppointments = (appointments ?? []) as AppointmentWithClient[];
+  const typedPayments = (payments ?? []) as PaymentLinkWithClient[];
+  const typedTemplates = (templates ?? []) as MessageTemplateWithRules[];
+
+  const todayAppointments = typedAppointments.filter((a) => isToday(new Date(a.starts_at)));
   const pendingCount = todayAppointments.filter((a) => a.status === "scheduled").length;
-  const pendingPayments = (payments ?? []).filter((p) => !p.paid);
-  const pendingPaymentTotal = pendingPayments.reduce((sum, p) => sum + p.amount_cents, 0);
+  const pendingPayments = typedPayments.filter((p) => !p.paid);
+  const paymentDateFromDescription = (description?: string | null) => {
+    const match = description?.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+    if (!match) return null;
+    const day = Number(match[1]);
+    const month = Number(match[2]);
+    const year = Number(match[3]);
+    if (Number.isNaN(day) || Number.isNaN(month) || Number.isNaN(year)) return null;
+    const parsed = new Date(year, month - 1, day);
+    if (Number.isNaN(parsed.getTime())) return null;
+    // Guard against date rollovers like 31/04 by checking parsed components.
+    if (parsed.getDate() !== day || parsed.getMonth() !== month - 1 || parsed.getFullYear() !== year) {
+      return null;
+    }
+    return parsed;
+  };
+  const paymentDueDate = (payment: PaymentLinkWithClient) =>
+    paymentDateFromDescription(payment.description) ?? new Date(payment.created_at);
+  const paymentsDueToday = pendingPayments.filter((p) => isToday(paymentDueDate(p)));
+  const paymentsDueTotal = paymentsDueToday.reduce((sum, p) => sum + p.amount_cents, 0);
+
+  const getClientInitial = (name?: string | null) => {
+    const trimmed = name?.trim() ?? "";
+    if (!trimmed) return "?";
+    return (Array.from(trimmed)[0] ?? "?").toUpperCase();
+  };
+
+  const normalizeOffsetUnit = (offsetUnit?: MessageRule["offset_unit"] | null) =>
+    offsetUnit && VALID_OFFSET_UNITS.has(offsetUnit) ? offsetUnit : DEFAULT_OFFSET_UNIT;
+
+  const applyOffset = (
+    baseDate: Date,
+    offsetValue: number,
+    offsetUnit: MessageRule["offset_unit"] | null | undefined,
+    offsetDirection: 1 | -1
+  ) => {
+    const value = offsetValue * offsetDirection;
+    const safeUnit = normalizeOffsetUnit(offsetUnit);
+    switch (safeUnit) {
+      case "minutos":
+        return addMinutes(baseDate, value);
+      case "horas":
+        return addHours(baseDate, value);
+      case "dias":
+        return addDays(baseDate, value);
+    }
+    const _exhaustiveCheck: never = safeUnit;
+    throw new Error(`Unrecognized offset unit: ${offsetUnit ?? "unknown"}`);
+  };
+
+  const scheduledMessagesToday = typedAppointments
+    .filter((apt) => apt.status !== "canceled")
+    .flatMap((apt) => {
+      const clientName = apt.clients?.full_name ?? "—";
+      return typedTemplates.flatMap((tpl) => {
+        const rules = tpl.message_rules ?? [];
+        return rules
+          .filter((rule) => rule.active && rule.trigger !== "manual")
+          .flatMap((rule) => {
+            const baseDate =
+              rule.trigger === "apos_sessao"
+                ? (apt.ends_at ? new Date(apt.ends_at) : null)
+                : new Date(apt.starts_at);
+            if (!baseDate) return [];
+            const offsetDirection = rule.trigger === "antes_da_sessao" ? -1 : 1;
+            const scheduledAt = applyOffset(baseDate, rule.offset_value ?? 0, rule.offset_unit, offsetDirection);
+            if (!isToday(scheduledAt)) return [];
+            return [
+              {
+                id: `${apt.id}-${tpl.id}-${rule.id}`,
+                scheduledAt,
+                templateName: tpl.name,
+                clientName,
+              },
+            ];
+          });
+      });
+    })
+    .sort((a, b) => a.scheduledAt.getTime() - b.scheduledAt.getTime());
 
   const formatCents = (cents: number) => `R$ ${(cents / 100).toLocaleString("pt-BR", { minimumFractionDigits: 0 })}`;
 
@@ -231,10 +330,10 @@ const DashboardContent = () => {
     <div className="space-y-4 md:space-y-6">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
         {[
-          { label: "Sessões hoje", value: String(todayAppointments.length), icon: Clock, change: `${clients?.length ?? 0} clientes` },
-          { label: "Pendentes", value: String(pendingCount), icon: Bell, change: "aguardando confirmação" },
-          { label: "Pagamentos pendentes", value: formatCents(pendingPaymentTotal), icon: CreditCard, change: `${pendingPayments.length} cobranças` },
-          { label: "Templates", value: String((templates ?? []).length), icon: MessageSquare, change: "criados" },
+          { label: "Sessões hoje", value: String(todayAppointments.length), icon: Clock, subtitle: `${clients?.length ?? 0} clientes` },
+          { label: "Pendentes", value: String(pendingCount), icon: Bell, subtitle: "aguardando confirmação" },
+          { label: "Pagamentos hoje", value: formatCents(paymentsDueTotal), icon: CreditCard, subtitle: `${paymentsDueToday.length} cobranças` },
+          { label: "Mensagens hoje", value: String(scheduledMessagesToday.length), icon: MessageSquare, subtitle: "programadas" },
         ].map((stat) => (
           <div key={stat.label} className="rounded-xl border border-border bg-card p-5 shadow-soft">
             <div className="flex items-center justify-between mb-3">
@@ -242,51 +341,126 @@ const DashboardContent = () => {
               <stat.icon className="h-4 w-4 text-muted-foreground" />
             </div>
             <p className="text-2xl font-bold text-foreground">{stat.value}</p>
-            <p className="text-xs text-muted-foreground mt-1">{stat.change}</p>
+            <p className="text-xs text-muted-foreground mt-1">{stat.subtitle}</p>
           </div>
         ))}
       </div>
 
-      <div className="rounded-xl border border-border bg-card shadow-soft">
-        <div className="px-5 py-4 border-b border-border flex items-center justify-between">
-          <h2 className="font-semibold text-foreground">Sessões de hoje</h2>
-          <Button variant="ghost" size="sm">
-            Ver todas
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-        </div>
-        {aptsLoading ? (
-          <div className="flex items-center justify-center py-10">
-            <Loader2 className="h-5 w-5 animate-spin text-primary" />
+      <div className="grid gap-4 lg:grid-cols-3">
+        <div className="rounded-xl border border-border bg-card shadow-soft">
+          <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+            <h2 className="font-semibold text-foreground">Sessões de hoje</h2>
+            <Button variant="ghost" size="sm">
+              Ver todas
+              <ChevronRight className="h-4 w-4" />
+            </Button>
           </div>
-        ) : todayAppointments.length === 0 ? (
-          <div className="text-center py-10 text-muted-foreground text-sm">
-            Nenhuma sessão agendada para hoje.
-          </div>
-        ) : (
-          <div className="divide-y divide-border">
-            {todayAppointments.map((apt) => {
-              const clientName = (apt.clients as any)?.full_name ?? "—";
-              const s = statusMap[apt.status] || statusMap.scheduled;
-              return (
-                <div key={apt.id} className="px-5 py-4 flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <span className="text-sm font-mono font-medium text-foreground w-14">
-                      {format(new Date(apt.starts_at), "HH:mm")}
-                    </span>
-                    <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold text-sm">
-                      {clientName[0]}
+          {aptsLoading ? (
+            <div className="flex items-center justify-center py-10">
+              <Loader2 className="h-5 w-5 animate-spin text-primary" />
+            </div>
+          ) : todayAppointments.length === 0 ? (
+            <div className="text-center py-10 text-muted-foreground text-sm">
+              Nenhuma sessão agendada para hoje.
+            </div>
+          ) : (
+            <div className="divide-y divide-border">
+              {todayAppointments.map((apt) => {
+                const clientName = apt.clients?.full_name ?? "—";
+                const clientInitial = getClientInitial(clientName);
+                const s = statusMap[apt.status] || statusMap.scheduled;
+                return (
+                  <div key={apt.id} className="px-5 py-4 flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <span className="text-sm font-mono font-medium text-foreground w-14">
+                        {format(new Date(apt.starts_at), "HH:mm")}
+                      </span>
+                      <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold text-sm">
+                        {clientInitial}
+                      </div>
+                      <span className="font-medium text-foreground">{clientName}</span>
                     </div>
-                    <span className="font-medium text-foreground">{clientName}</span>
+                    <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${s.className}`}>
+                      {s.label}
+                    </span>
                   </div>
-                  <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${s.className}`}>
-                    {s.label}
-                  </span>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
+          )}
+        </div>
+        <div className="rounded-xl border border-border bg-card shadow-soft">
+          <div className="px-5 py-4 border-b border-border">
+            <h2 className="font-semibold text-foreground">Pagamentos a receber hoje</h2>
           </div>
-        )}
+          {paymentsLoading ? (
+            <div className="flex items-center justify-center py-10">
+              <Loader2 className="h-5 w-5 animate-spin text-primary" />
+            </div>
+          ) : paymentsDueToday.length === 0 ? (
+            <div className="text-center py-10 text-muted-foreground text-sm">
+              Nenhuma cobrança pendente para hoje.
+            </div>
+          ) : (
+            <div className="divide-y divide-border">
+              {paymentsDueToday.map((payment) => {
+                const clientName = payment.clients?.full_name ?? "—";
+                const clientInitial = getClientInitial(clientName);
+                return (
+                  <div key={payment.id} className="px-5 py-4 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs font-mono text-muted-foreground w-12">Hoje</span>
+                      <div className="h-8 w-8 rounded-full bg-secondary/10 flex items-center justify-center text-secondary font-semibold text-xs">
+                        {clientInitial}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-foreground truncate">{clientName}</p>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {payment.description ?? "Cobrança pendente"}
+                        </p>
+                      </div>
+                    </div>
+                    <span className="text-sm font-semibold text-secondary">{formatCents(payment.amount_cents)}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+        <div className="rounded-xl border border-border bg-card shadow-soft">
+          <div className="px-5 py-4 border-b border-border">
+            <h2 className="font-semibold text-foreground">Mensagens programadas hoje</h2>
+          </div>
+          {aptsLoading || templatesLoading ? (
+            <div className="flex items-center justify-center py-10">
+              <Loader2 className="h-5 w-5 animate-spin text-primary" />
+            </div>
+          ) : scheduledMessagesToday.length === 0 ? (
+            <div className="text-center py-10 text-muted-foreground text-sm">
+              Nenhuma mensagem programada para hoje.
+            </div>
+          ) : (
+            <div className="divide-y divide-border">
+              {scheduledMessagesToday.map((msg) => (
+                <div key={msg.id} className="px-5 py-4 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs font-mono text-muted-foreground w-12">
+                      {format(msg.scheduledAt, "HH:mm")}
+                    </span>
+                    <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold text-xs">
+                      <MessageSquare className="h-4 w-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-foreground truncate">{msg.templateName}</p>
+                      <p className="text-xs text-muted-foreground truncate">{msg.clientName}</p>
+                    </div>
+                  </div>
+                  <span className="text-xs text-muted-foreground">Programado</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
