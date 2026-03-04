@@ -75,6 +75,13 @@ Deno.serve(async (req) => {
     const baseUrl = EVOLUTION_API_URL.replace(/\/$/, "");
     const instanceName = `agendix-${workspace_id.substring(0, 8)}`;
     const headers = { "apikey": EVOLUTION_API_KEY, "Content-Type": "application/json" };
+    const webhookUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/whatsapp-qr-webhook`;
+    const webhookConfig = {
+      url: webhookUrl,
+      byEvents: true,
+      base64: true,
+      events: ["QRCODE_UPDATED", "CONNECTION_UPDATE", "STATUS_INSTANCE"],
+    };
 
     // Step 1: Check if instance already exists
     console.log(`[whatsapp-qr-create] Checking connection state for: ${instanceName}`);
@@ -145,6 +152,7 @@ Deno.serve(async (req) => {
           instanceName,
           integration: "WHATSAPP-BAILEYS",
           qrcode: true,
+          webhook: webhookConfig,
         }),
       });
 
@@ -168,6 +176,20 @@ Deno.serve(async (req) => {
 
       // Wait a moment for instance to be ready
       await new Promise((r) => setTimeout(r, 1000));
+    }
+
+    // Ensure webhook is configured for existing instances (may have been created before webhook support)
+    if (instanceExists) {
+      try {
+        await fetch(`${baseUrl}/webhook/set/${instanceName}`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify(webhookConfig),
+        });
+        console.log(`[whatsapp-qr-create] Webhook configured for existing instance: ${instanceName}`);
+      } catch (e) {
+        console.warn(`[whatsapp-qr-create] Could not set webhook for existing instance ${instanceName}:`, e);
+      }
     }
 
     // Step 4: Get QR code via connect

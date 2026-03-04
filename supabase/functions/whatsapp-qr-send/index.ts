@@ -75,7 +75,8 @@ Deno.serve(async (req) => {
     const headers = { "apikey": EVOLUTION_API_KEY, "Content-Type": "application/json" };
 
     // Normalize phone
-    const phone = to_phone.replace(/\D/g, "");
+    const cleanPhone = to_phone.replace(/\D/g, "");
+    const phone = cleanPhone.startsWith("55") ? cleanPhone : `55${cleanPhone}`;
     const textMessage = message || "Agendix: conexão QR realizada com sucesso ✅";
 
     const sendRes = await fetch(`${baseUrl}/message/sendText/${instance.instance_key}`, {

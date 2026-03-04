@@ -78,18 +78,27 @@ Deno.serve(async (req) => {
     const connected = state === "open";
     const newStatus = connected ? "connected" : "disconnected";
 
+    // Extract phone number from connection state response when connected
+    const rawPhone = data?.instance?.owner ?? data?.owner ?? data?.me?.id ?? null;
+    const phoneNumber = rawPhone ? rawPhone.replace(/@.*$/, "").replace(/\D/g, "") : null;
+    const updatedPhone = phoneNumber || instance.phone_number;
+
     // Update DB if changed
-    if (newStatus !== instance.status) {
+    if (newStatus !== instance.status || (phoneNumber && phoneNumber !== instance.phone_number)) {
       await supabaseAdmin
         .from("whatsapp_instances_qr")
-        .update({ status: newStatus, qr_code: connected ? null : instance.qr_code })
+        .update({
+          status: newStatus,
+          qr_code: connected ? null : instance.qr_code,
+          ...(phoneNumber ? { phone_number: phoneNumber } : {}),
+        })
         .eq("id", instance.id);
     }
 
     return new Response(JSON.stringify({
       status: newStatus,
       connected,
-      phone_number: instance.phone_number,
+      phone_number: updatedPhone,
       instance_key: instance.instance_key,
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
