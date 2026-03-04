@@ -47,6 +47,8 @@ type MessageTemplateWithRules = Database["public"]["Tables"]["message_templates"
   message_rules?: MessageRule[] | null;
 };
 
+const DEFAULT_OFFSET_UNIT: MessageRule["offset_unit"] = "horas";
+
 const tabs = [
   { icon: Calendar, label: "Dashboard", id: "dashboard", subtitle: "Visão geral do seu dia" },
   { icon: Users, label: "Clientes", id: "clientes", subtitle: "Gerencie seus clientes" },
@@ -266,7 +268,7 @@ const DashboardContent = () => {
     if (offsetUnit === "minutos" || offsetUnit === "horas" || offsetUnit === "dias") {
       return offsetUnit;
     }
-    return "horas";
+    return DEFAULT_OFFSET_UNIT;
   };
 
   const applyOffset = (
@@ -324,10 +326,10 @@ const DashboardContent = () => {
     <div className="space-y-4 md:space-y-6">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
         {[
-          { label: "Sessões hoje", value: String(todayAppointments.length), icon: Clock, change: `${clients?.length ?? 0} clientes` },
-          { label: "Pendentes", value: String(pendingCount), icon: Bell, change: "aguardando confirmação" },
-          { label: "Pagamentos hoje", value: formatCents(paymentsDueTotal), icon: CreditCard, change: `${paymentsDueToday.length} cobranças` },
-          { label: "Mensagens hoje", value: String(scheduledMessagesToday.length), icon: MessageSquare, change: "programadas" },
+          { label: "Sessões hoje", value: String(todayAppointments.length), icon: Clock, subtitle: `${clients?.length ?? 0} clientes` },
+          { label: "Pendentes", value: String(pendingCount), icon: Bell, subtitle: "aguardando confirmação" },
+          { label: "Pagamentos hoje", value: formatCents(paymentsDueTotal), icon: CreditCard, subtitle: `${paymentsDueToday.length} cobranças` },
+          { label: "Mensagens hoje", value: String(scheduledMessagesToday.length), icon: MessageSquare, subtitle: "programadas" },
         ].map((stat) => (
           <div key={stat.label} className="rounded-xl border border-border bg-card p-5 shadow-soft">
             <div className="flex items-center justify-between mb-3">
@@ -335,7 +337,7 @@ const DashboardContent = () => {
               <stat.icon className="h-4 w-4 text-muted-foreground" />
             </div>
             <p className="text-2xl font-bold text-foreground">{stat.value}</p>
-            <p className="text-xs text-muted-foreground mt-1">{stat.change}</p>
+            <p className="text-xs text-muted-foreground mt-1">{stat.subtitle}</p>
           </div>
         ))}
       </div>
@@ -361,7 +363,7 @@ const DashboardContent = () => {
             <div className="divide-y divide-border">
               {todayAppointments.map((apt) => {
                 const clientName = apt.clients?.full_name ?? "—";
-                const clientInitial = clientName[0] || "?";
+                const clientInitial = clientName.trim().charAt(0) || "?";
                 const s = statusMap[apt.status] || statusMap.scheduled;
                 return (
                   <div key={apt.id} className="px-5 py-4 flex items-center justify-between">
@@ -399,7 +401,7 @@ const DashboardContent = () => {
             <div className="divide-y divide-border">
               {paymentsDueToday.map((payment) => {
                 const clientName = payment.clients?.full_name ?? "—";
-                const clientInitial = clientName[0] || "?";
+                const clientInitial = clientName.trim().charAt(0) || "?";
                 const hasDateLabel = Boolean(paymentDateFromDescription(payment.description));
                 const timeLabel = hasDateLabel ? "Hoje" : format(new Date(payment.created_at), "HH:mm");
                 return (
