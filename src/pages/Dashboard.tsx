@@ -48,6 +48,7 @@ type MessageTemplateWithRules = Database["public"]["Tables"]["message_templates"
 };
 
 const DEFAULT_OFFSET_UNIT: MessageRule["offset_unit"] = "horas";
+const VALID_OFFSET_UNITS = new Set<MessageRule["offset_unit"]>(["minutos", "horas", "dias"]);
 
 const tabs = [
   { icon: Calendar, label: "Dashboard", id: "dashboard", subtitle: "Visão geral do seu dia" },
@@ -253,6 +254,7 @@ const DashboardContent = () => {
     if (Number.isNaN(day) || Number.isNaN(month) || Number.isNaN(year)) return null;
     const parsed = new Date(year, month - 1, day);
     if (Number.isNaN(parsed.getTime())) return null;
+    // Guard against date rollovers like 31/02 by checking parsed components.
     if (parsed.getDate() !== day || parsed.getMonth() !== month - 1 || parsed.getFullYear() !== year) {
       return null;
     }
@@ -269,9 +271,8 @@ const DashboardContent = () => {
     return trimmed.charAt(0);
   };
 
-  const validOffsetUnits = new Set<MessageRule["offset_unit"]>(["minutos", "horas", "dias"]);
   const normalizeOffsetUnit = (offsetUnit?: MessageRule["offset_unit"] | null) =>
-    offsetUnit && validOffsetUnits.has(offsetUnit) ? offsetUnit : DEFAULT_OFFSET_UNIT;
+    offsetUnit && VALID_OFFSET_UNITS.has(offsetUnit) ? offsetUnit : DEFAULT_OFFSET_UNIT;
 
   const applyOffset = (
     baseDate: Date,
