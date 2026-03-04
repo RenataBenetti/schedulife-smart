@@ -84,8 +84,14 @@ const ConfiguracoesTab = () => {
       setNotifEmail(notificationSettings.email_on_confirmation);
       setNotifPayment(notificationSettings.payment_overdue_alert);
       setNotifSummary(notificationSettings.daily_summary);
+      return;
     }
-  }, [notificationSettings]);
+    if (!notificationsLoading) {
+      setNotifEmail(false);
+      setNotifPayment(false);
+      setNotifSummary(false);
+    }
+  }, [notificationSettings, notificationsLoading]);
 
   if (wsLoading) {
     return (
