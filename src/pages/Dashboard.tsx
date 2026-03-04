@@ -268,7 +268,7 @@ const DashboardContent = () => {
   const getClientInitial = (name?: string | null) => {
     const trimmed = name?.trim() ?? "";
     if (!trimmed) return "?";
-    return trimmed.charAt(0);
+    return trimmed.charAt(0).toUpperCase();
   };
 
   const normalizeOffsetUnit = (offsetUnit?: MessageRule["offset_unit"] | null) =>
@@ -289,9 +289,9 @@ const DashboardContent = () => {
         return addHours(baseDate, value);
       case "dias":
         return addDays(baseDate, value);
-      default:
-        return baseDate;
     }
+    // safeUnit is validated; fallback keeps UI stable if unexpected values slip through.
+    return baseDate;
   };
 
   const scheduledMessagesToday = typedAppointments
