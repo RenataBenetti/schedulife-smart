@@ -264,6 +264,12 @@ const DashboardContent = () => {
   const paymentsDueToday = pendingPayments.filter((p) => isToday(paymentDueDate(p)));
   const paymentsDueTotal = paymentsDueToday.reduce((sum, p) => sum + p.amount_cents, 0);
 
+  const getClientInitial = (name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed || trimmed === "—") return "?";
+    return trimmed.charAt(0);
+  };
+
   const normalizeOffsetUnit = (offsetUnit?: MessageRule["offset_unit"] | null) => {
     if (offsetUnit === "minutos" || offsetUnit === "horas" || offsetUnit === "dias") {
       return offsetUnit;
@@ -363,7 +369,7 @@ const DashboardContent = () => {
             <div className="divide-y divide-border">
               {todayAppointments.map((apt) => {
                 const clientName = apt.clients?.full_name ?? "—";
-                const clientInitial = clientName.trim().charAt(0) || "?";
+                const clientInitial = getClientInitial(clientName);
                 const s = statusMap[apt.status] || statusMap.scheduled;
                 return (
                   <div key={apt.id} className="px-5 py-4 flex items-center justify-between">
@@ -401,7 +407,7 @@ const DashboardContent = () => {
             <div className="divide-y divide-border">
               {paymentsDueToday.map((payment) => {
                 const clientName = payment.clients?.full_name ?? "—";
-                const clientInitial = clientName.trim().charAt(0) || "?";
+                const clientInitial = getClientInitial(clientName);
                 const hasDateLabel = Boolean(paymentDateFromDescription(payment.description));
                 const timeLabel = hasDateLabel ? "Hoje" : format(new Date(payment.created_at), "HH:mm");
                 return (
