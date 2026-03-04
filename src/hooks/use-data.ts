@@ -1,5 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
+
+type NotificationSettingsInsert = Database["public"]["Tables"]["notification_settings"]["Insert"];
 
 export const useClients = (workspaceId: string | undefined) => {
   return useQuery({
@@ -330,6 +333,41 @@ export const useGoogleCalendarConfig = (workspaceId: string | undefined) => {
   });
 };
 
+export const useNotificationSettings = (workspaceId: string | undefined) => {
+  return useQuery({
+    queryKey: ["notification_settings", workspaceId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("notification_settings")
+        .select("*")
+        .eq("workspace_id", workspaceId!)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!workspaceId,
+  });
+};
+
+export const useUpsertNotificationSettings = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (settings: NotificationSettingsInsert) => {
+      const { data, error } = await supabase
+        .from("notification_settings")
+        .upsert(settings, { onConflict: "workspace_id" })
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["notification_settings", data.workspace_id] });
+    },
+  });
+};
+
 export const useMessageLogs = (workspaceId: string | undefined) => {
   return useQuery({
     queryKey: ["message_logs", workspaceId],
@@ -346,4 +384,3 @@ export const useMessageLogs = (workspaceId: string | undefined) => {
     enabled: !!workspaceId,
   });
 };
-

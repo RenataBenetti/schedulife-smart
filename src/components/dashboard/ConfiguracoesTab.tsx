@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,7 +20,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { useProfile, useUpdateProfile, useUpdateWorkspace, useSubscription, useGoogleCalendarConfig } from "@/hooks/use-data";
+import { useProfile, useUpdateProfile, useUpdateWorkspace, useSubscription, useGoogleCalendarConfig, useNotificationSettings, useUpsertNotificationSettings } from "@/hooks/use-data";
 import { WhatsAppMetaConnect } from "@/components/dashboard/WhatsAppMetaConnect";
 import { WhatsAppQRConnect } from "@/components/dashboard/WhatsAppQRConnect";
 import { FEATURE_FLAGS } from "@/lib/feature-flags";
@@ -59,8 +59,10 @@ const ConfiguracoesTab = () => {
   const { data: profile } = useProfile(user?.id);
   const { data: subscription } = useSubscription(workspace?.id);
   const { data: gcalCfg, refetch: refetchGcal } = useGoogleCalendarConfig(workspace?.id);
+  const { data: notificationSettings, isLoading: notificationsLoading } = useNotificationSettings(workspace?.id);
   const updateProfile = useUpdateProfile();
   const updateWorkspace = useUpdateWorkspace();
+  const upsertNotificationSettings = useUpsertNotificationSettings();
   const { toast } = useToast();
 
   const [fullName, setFullName] = useState("");
@@ -76,6 +78,20 @@ const ConfiguracoesTab = () => {
   const currentPrimary = primaryColor || (workspace as any)?.primary_color || "#2563EB";
   const currentSecondary = secondaryColor || (workspace as any)?.secondary_color || "#0EA5E9";
   const currentLogo = (workspace as any)?.logo_url || "";
+
+  useEffect(() => {
+    if (notificationSettings) {
+      setNotifEmail(notificationSettings.email_on_confirmation);
+      setNotifPayment(notificationSettings.payment_overdue_alert);
+      setNotifSummary(notificationSettings.daily_summary);
+      return;
+    }
+    if (!notificationsLoading) {
+      setNotifEmail(false);
+      setNotifPayment(false);
+      setNotifSummary(false);
+    }
+  }, [notificationSettings, notificationsLoading]);
 
   if (wsLoading) {
     return (
@@ -105,6 +121,21 @@ const ConfiguracoesTab = () => {
         secondary_color: currentSecondary
       });
       toast({ title: "Marca atualizada!" });
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Erro", description: e.message });
+    }
+  };
+
+  const handleSaveNotifications = async () => {
+    if (!workspace) return;
+    try {
+      await upsertNotificationSettings.mutateAsync({
+        workspace_id: workspace.id,
+        email_on_confirmation: notifEmail,
+        payment_overdue_alert: notifPayment,
+        daily_summary: notifSummary
+      });
+      toast({ title: "Notificações atualizadas!" });
     } catch (e: any) {
       toast({ variant: "destructive", title: "Erro", description: e.message });
     }
@@ -321,22 +352,25 @@ const ConfiguracoesTab = () => {
                   <p className="text-sm font-medium text-foreground">Email ao receber confirmação</p>
                   <p className="text-xs text-muted-foreground">Receba um email quando o cliente confirmar a sessão.</p>
                 </div>
-                <Switch checked={notifEmail} onCheckedChange={setNotifEmail} />
+                <Switch checked={notifEmail} onCheckedChange={setNotifEmail} disabled={notificationsLoading} />
               </div>
               <div className="flex items-center justify-between gap-4">
                 <div>
                   <p className="text-sm font-medium text-foreground">Alerta de pagamento pendente</p>
                   <p className="text-xs text-muted-foreground">Notificação quando um pagamento estiver pendente por mais de 3 dias.</p>
                 </div>
-                <Switch checked={notifPayment} onCheckedChange={setNotifPayment} />
+                <Switch checked={notifPayment} onCheckedChange={setNotifPayment} disabled={notificationsLoading} />
               </div>
               <div className="flex items-center justify-between gap-4">
                 <div>
                   <p className="text-sm font-medium text-foreground">Resumo diário</p>
                   <p className="text-xs text-muted-foreground">Receba um resumo das sessões do dia pela manhã.</p>
                 </div>
-                <Switch checked={notifSummary} onCheckedChange={setNotifSummary} />
+                <Switch checked={notifSummary} onCheckedChange={setNotifSummary} disabled={notificationsLoading} />
               </div>
+              <Button variant="hero" size="sm" onClick={handleSaveNotifications} disabled={!workspace || upsertNotificationSettings.isPending || notificationsLoading}>
+                {upsertNotificationSettings.isPending ? "Salvando..." : "Salvar preferências"}
+              </Button>
             </div>
           </div>
         }
