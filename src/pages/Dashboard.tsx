@@ -268,7 +268,7 @@ const DashboardContent = () => {
   const getClientInitial = (name?: string | null) => {
     const trimmed = name?.trim() ?? "";
     if (!trimmed) return "?";
-    return trimmed.charAt(0).toUpperCase();
+    return (Array.from(trimmed)[0] ?? "?").toUpperCase();
   };
 
   const normalizeOffsetUnit = (offsetUnit?: MessageRule["offset_unit"] | null) =>
@@ -291,7 +291,7 @@ const DashboardContent = () => {
         return addDays(baseDate, value);
     }
     const _exhaustiveCheck: never = safeUnit;
-    throw new Error(`Unrecognized offset unit: ${_exhaustiveCheck}`);
+    throw new Error(`Unrecognized offset unit: ${offsetUnit ?? "unknown"}`);
   };
 
   const scheduledMessagesToday = typedAppointments
@@ -305,8 +305,9 @@ const DashboardContent = () => {
           .flatMap((rule) => {
             const baseDate =
               rule.trigger === "apos_sessao"
-                ? new Date(apt.ends_at ?? apt.starts_at)
+                ? (apt.ends_at ? new Date(apt.ends_at) : null)
                 : new Date(apt.starts_at);
+            if (!baseDate) return [];
             const offsetDirection = rule.trigger === "antes_da_sessao" ? -1 : 1;
             const scheduledAt = applyOffset(baseDate, rule.offset_value ?? 0, rule.offset_unit, offsetDirection);
             if (!isToday(scheduledAt)) return [];
