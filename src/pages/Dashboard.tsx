@@ -251,7 +251,6 @@ const DashboardContent = () => {
     const month = Number(match[2]);
     const year = Number(match[3]);
     if (Number.isNaN(day) || Number.isNaN(month) || Number.isNaN(year)) return null;
-    if (day < 1 || day > 31 || month < 1 || month > 12) return null;
     const parsed = new Date(year, month - 1, day);
     if (Number.isNaN(parsed.getTime())) return null;
     if (parsed.getDate() !== day || parsed.getMonth() !== month - 1 || parsed.getFullYear() !== year) {
@@ -266,16 +265,13 @@ const DashboardContent = () => {
 
   const getClientInitial = (name: string) => {
     const trimmed = name.trim();
-    if (!trimmed || trimmed === "—") return "?";
+    if (!trimmed) return "?";
     return trimmed.charAt(0);
   };
 
-  const normalizeOffsetUnit = (offsetUnit?: MessageRule["offset_unit"] | null) => {
-    if (offsetUnit === "minutos" || offsetUnit === "horas" || offsetUnit === "dias") {
-      return offsetUnit;
-    }
-    return DEFAULT_OFFSET_UNIT;
-  };
+  const validOffsetUnits = new Set<MessageRule["offset_unit"]>(["minutos", "horas", "dias"]);
+  const normalizeOffsetUnit = (offsetUnit?: MessageRule["offset_unit"] | null) =>
+    offsetUnit && validOffsetUnits.has(offsetUnit) ? offsetUnit : DEFAULT_OFFSET_UNIT;
 
   const applyOffset = (
     baseDate: Date,
@@ -408,8 +404,7 @@ const DashboardContent = () => {
               {paymentsDueToday.map((payment) => {
                 const clientName = payment.clients?.full_name ?? "—";
                 const clientInitial = getClientInitial(clientName);
-                const hasDateLabel = Boolean(paymentDateFromDescription(payment.description));
-                const timeLabel = hasDateLabel ? "Hoje" : format(new Date(payment.created_at), "HH:mm");
+                const timeLabel = "Hoje";
                 return (
                   <div key={payment.id} className="px-5 py-4 flex items-center justify-between">
                     <div className="flex items-center gap-3">
