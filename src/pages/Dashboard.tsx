@@ -263,8 +263,8 @@ const DashboardContent = () => {
   const paymentsDueToday = pendingPayments.filter((p) => isToday(paymentDueDate(p)));
   const paymentsDueTotal = paymentsDueToday.reduce((sum, p) => sum + p.amount_cents, 0);
 
-  const getClientInitial = (name: string) => {
-    const trimmed = name.trim();
+  const getClientInitial = (name?: string | null) => {
+    const trimmed = name?.trim() ?? "";
     if (!trimmed) return "?";
     return trimmed.charAt(0);
   };
@@ -277,9 +277,9 @@ const DashboardContent = () => {
     baseDate: Date,
     offsetValue: number,
     offsetUnit: MessageRule["offset_unit"] | null | undefined,
-    direction: 1 | -1
+    offsetDirection: 1 | -1
   ) => {
-    const value = offsetValue * direction;
+    const value = offsetValue * offsetDirection;
     const safeUnit = normalizeOffsetUnit(offsetUnit);
     switch (safeUnit) {
       case "minutos":
@@ -306,8 +306,8 @@ const DashboardContent = () => {
               rule.trigger === "apos_sessao"
                 ? new Date(apt.ends_at ?? apt.starts_at)
                 : new Date(apt.starts_at);
-            const direction = rule.trigger === "antes_da_sessao" ? -1 : 1;
-            const scheduledAt = applyOffset(baseDate, rule.offset_value ?? 0, rule.offset_unit, direction);
+            const offsetDirection = rule.trigger === "antes_da_sessao" ? -1 : 1;
+            const scheduledAt = applyOffset(baseDate, rule.offset_value ?? 0, rule.offset_unit, offsetDirection);
             if (!isToday(scheduledAt)) return [];
             return [
               {
@@ -404,11 +404,10 @@ const DashboardContent = () => {
               {paymentsDueToday.map((payment) => {
                 const clientName = payment.clients?.full_name ?? "—";
                 const clientInitial = getClientInitial(clientName);
-                const timeLabel = "Hoje";
                 return (
                   <div key={payment.id} className="px-5 py-4 flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <span className="text-xs font-mono text-muted-foreground w-12">{timeLabel}</span>
+                      <span className="text-xs font-mono text-muted-foreground w-12">Hoje</span>
                       <div className="h-8 w-8 rounded-full bg-secondary/10 flex items-center justify-center text-secondary font-semibold text-xs">
                         {clientInitial}
                       </div>
