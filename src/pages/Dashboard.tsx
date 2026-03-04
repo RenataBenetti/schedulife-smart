@@ -245,18 +245,39 @@ const DashboardContent = () => {
   const paymentDateFromDescription = (description?: string | null) => {
     const match = description?.match(/(\d{2})\/(\d{2})\/(\d{4})/);
     if (!match) return null;
-    const [, day, month, year] = match;
-    const parsed = new Date(Number(year), Number(month) - 1, Number(day));
-    return Number.isNaN(parsed.getTime()) ? null : parsed;
+    const day = Number(match[1]);
+    const month = Number(match[2]);
+    const year = Number(match[3]);
+    if (Number.isNaN(day) || Number.isNaN(month) || Number.isNaN(year)) return null;
+    if (day < 1 || day > 31 || month < 1 || month > 12) return null;
+    const parsed = new Date(year, month - 1, day);
+    if (Number.isNaN(parsed.getTime())) return null;
+    if (parsed.getDate() !== day || parsed.getMonth() !== month - 1 || parsed.getFullYear() !== year) {
+      return null;
+    }
+    return parsed;
   };
   const paymentDueDate = (payment: PaymentLinkWithClient) =>
     paymentDateFromDescription(payment.description) ?? new Date(payment.created_at);
   const paymentsDueToday = pendingPayments.filter((p) => isToday(paymentDueDate(p)));
   const paymentsDueTotal = paymentsDueToday.reduce((sum, p) => sum + p.amount_cents, 0);
 
-  const applyOffset = (baseDate: Date, offsetValue: number, offsetUnit: string, direction: 1 | -1) => {
+  const normalizeOffsetUnit = (offsetUnit?: MessageRule["offset_unit"] | null) => {
+    if (offsetUnit === "minutos" || offsetUnit === "horas" || offsetUnit === "dias") {
+      return offsetUnit;
+    }
+    return "horas";
+  };
+
+  const applyOffset = (
+    baseDate: Date,
+    offsetValue: number,
+    offsetUnit: MessageRule["offset_unit"] | null | undefined,
+    direction: 1 | -1
+  ) => {
     const value = offsetValue * direction;
-    switch (offsetUnit) {
+    const safeUnit = normalizeOffsetUnit(offsetUnit);
+    switch (safeUnit) {
       case "minutos":
         return addMinutes(baseDate, value);
       case "horas":
@@ -340,6 +361,7 @@ const DashboardContent = () => {
             <div className="divide-y divide-border">
               {todayAppointments.map((apt) => {
                 const clientName = apt.clients?.full_name ?? "—";
+                const clientInitial = clientName[0] || "?";
                 const s = statusMap[apt.status] || statusMap.scheduled;
                 return (
                   <div key={apt.id} className="px-5 py-4 flex items-center justify-between">
@@ -348,7 +370,7 @@ const DashboardContent = () => {
                         {format(new Date(apt.starts_at), "HH:mm")}
                       </span>
                       <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold text-sm">
-                        {clientName[0]}
+                        {clientInitial}
                       </div>
                       <span className="font-medium text-foreground">{clientName}</span>
                     </div>
@@ -377,6 +399,7 @@ const DashboardContent = () => {
             <div className="divide-y divide-border">
               {paymentsDueToday.map((payment) => {
                 const clientName = payment.clients?.full_name ?? "—";
+                const clientInitial = clientName[0] || "?";
                 const hasDateLabel = Boolean(paymentDateFromDescription(payment.description));
                 const timeLabel = hasDateLabel ? "Hoje" : format(new Date(payment.created_at), "HH:mm");
                 return (
@@ -384,7 +407,7 @@ const DashboardContent = () => {
                     <div className="flex items-center gap-3">
                       <span className="text-xs font-mono text-muted-foreground w-12">{timeLabel}</span>
                       <div className="h-8 w-8 rounded-full bg-secondary/10 flex items-center justify-center text-secondary font-semibold text-xs">
-                        {clientName[0]}
+                        {clientInitial}
                       </div>
                       <div className="min-w-0">
                         <p className="text-sm font-medium text-foreground truncate">{clientName}</p>
