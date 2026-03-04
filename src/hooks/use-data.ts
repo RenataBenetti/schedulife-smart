@@ -330,6 +330,41 @@ export const useGoogleCalendarConfig = (workspaceId: string | undefined) => {
   });
 };
 
+export const useNotificationSettings = (workspaceId: string | undefined) => {
+  return useQuery({
+    queryKey: ["notification_settings", workspaceId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("notification_settings")
+        .select("*")
+        .eq("workspace_id", workspaceId!)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!workspaceId,
+  });
+};
+
+export const useUpsertNotificationSettings = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (settings: { workspace_id: string; email_on_confirmation?: boolean; payment_overdue_alert?: boolean; daily_summary?: boolean }) => {
+      const { data, error } = await supabase
+        .from("notification_settings")
+        .upsert(settings, { onConflict: "workspace_id" })
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["notification_settings", data.workspace_id] });
+    },
+  });
+};
+
 export const useMessageLogs = (workspaceId: string | undefined) => {
   return useQuery({
     queryKey: ["message_logs", workspaceId],
@@ -346,4 +381,3 @@ export const useMessageLogs = (workspaceId: string | undefined) => {
     enabled: !!workspaceId,
   });
 };
-

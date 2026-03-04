@@ -460,6 +460,44 @@ export type Database = {
           },
         ]
       }
+      notification_settings: {
+        Row: {
+          created_at: string
+          daily_summary: boolean
+          email_on_confirmation: boolean
+          id: string
+          payment_overdue_alert: boolean
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          daily_summary?: boolean
+          email_on_confirmation?: boolean
+          id?: string
+          payment_overdue_alert?: boolean
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          daily_summary?: boolean
+          email_on_confirmation?: boolean
+          id?: string
+          payment_overdue_alert?: boolean
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_settings_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: true
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       payment_links: {
         Row: {
           amount_cents: number
