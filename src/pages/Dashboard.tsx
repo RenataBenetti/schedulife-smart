@@ -254,7 +254,7 @@ const DashboardContent = () => {
     if (Number.isNaN(day) || Number.isNaN(month) || Number.isNaN(year)) return null;
     const parsed = new Date(year, month - 1, day);
     if (Number.isNaN(parsed.getTime())) return null;
-    // Guard against date rollovers like 31/02 by checking parsed components.
+    // Guard against date rollovers like 31/04 by checking parsed components.
     if (parsed.getDate() !== day || parsed.getMonth() !== month - 1 || parsed.getFullYear() !== year) {
       return null;
     }
@@ -290,8 +290,8 @@ const DashboardContent = () => {
       case "dias":
         return addDays(baseDate, value);
     }
-    // safeUnit is validated; fallback keeps UI stable if unexpected values slip through.
-    return baseDate;
+    const _exhaustiveCheck: never = safeUnit;
+    throw new Error(`Unrecognized offset unit: ${_exhaustiveCheck}`);
   };
 
   const scheduledMessagesToday = typedAppointments
