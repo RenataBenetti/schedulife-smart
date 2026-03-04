@@ -1,5 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
+
+type NotificationSettingsInsert = Database["public"]["Tables"]["notification_settings"]["Insert"];
 
 export const useClients = (workspaceId: string | undefined) => {
   return useQuery({
@@ -350,7 +353,7 @@ export const useUpsertNotificationSettings = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (settings: { workspace_id: string; email_on_confirmation?: boolean; payment_overdue_alert?: boolean; daily_summary?: boolean }) => {
+    mutationFn: async (settings: NotificationSettingsInsert) => {
       const { data, error } = await supabase
         .from("notification_settings")
         .upsert(settings, { onConflict: "workspace_id" })
