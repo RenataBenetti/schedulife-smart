@@ -11,7 +11,8 @@ function substituteVariables(body: string, vars: Record<string, string>): string
     .replace(/\{\{nome_cliente\}\}/g, vars.nome_cliente ?? "")
     .replace(/\{\{data_sessao\}\}/g, vars.data_sessao ?? "")
     .replace(/\{\{hora_sessao\}\}/g, vars.hora_sessao ?? "")
-    .replace(/\{\{nome_profissional\}\}/g, vars.nome_profissional ?? "");
+    .replace(/\{\{nome_profissional\}\}/g, vars.nome_profissional ?? "")
+    .replace(/\{\{link_pagamento\}\}/g, vars.link_pagamento ?? "");
 }
 
 // Formata data e hora em pt-BR
@@ -102,7 +103,7 @@ Deno.serve(async (req) => {
       // 3. Buscar regras ativas do workspace
       const { data: rules, error: rulesErr } = await supabase
         .from("message_rules")
-        .select("*, message_templates(body, name)")
+        .select("*, message_templates(body, name, message_type, payment_link_id, payment_link_override)")
         .eq("workspace_id", workspace_id)
         .eq("active", true)
         .in("trigger", ["antes_da_sessao", "apos_sessao"]);
@@ -111,6 +112,14 @@ Deno.serve(async (req) => {
         console.log(`[process-message-rules] No active rules for workspace ${workspace_id}`);
         continue;
       }
+
+      // Fetch workspace name for {{nome_profissional}}
+      const { data: wsData } = await supabase
+        .from("workspaces")
+        .select("name")
+        .eq("id", workspace_id)
+        .maybeSingle();
+      const profissionalName = wsData?.name ?? "";
 
       console.log(`[process-message-rules] Workspace ${workspace_id}: ${rules.length} active rules`);
 
@@ -153,6 +162,21 @@ Deno.serve(async (req) => {
           continue;
         }
 
+        // Resolve payment link for this template (once per rule)
+        let paymentLinkUrl: string | null = null;
+        if (template.message_type === "payment_link") {
+          if (template.payment_link_override) {
+            paymentLinkUrl = template.payment_link_override;
+          } else if (template.payment_link_id) {
+            const { data: plData } = await supabase
+              .from("payment_links")
+              .select("external_link, url")
+              .eq("id", template.payment_link_id)
+              .maybeSingle();
+            paymentLinkUrl = plData?.external_link || plData?.url || null;
+          }
+        }
+
         console.log(`[process-message-rules] Found ${appointments.length} appointments for rule "${template.name}"`);
 
         for (const apt of appointments) {
@@ -177,21 +201,8 @@ Deno.serve(async (req) => {
             continue;
           }
 
-          // Also check outbox to avoid duplicate queueing
-          const { data: existingOutbox } = await supabase
-            .from("whatsapp_outbox")
-            .select("id")
-            .eq("workspace_id", workspace_id)
-            .eq("to_phone", client.phone)
-            .eq("instance_name", instanceName)
-            .in("status", ["queued", "sending", "sent"])
-            .maybeSingle();
-
-          if (existingOutbox) {
-            console.log(`[process-message-rules] Already in outbox for phone ${client.phone}`);
-            totalSkipped++;
-            continue;
-          }
+          // Also check outbox for same appointment + rule combination (via message_text match is fragile, use log check above as primary)
+          // The message_logs check above is the primary dedup mechanism
 
           // 6. Substituir variáveis no template
           const { data: dataStr, hora } = formatDateTime(apt.starts_at);
@@ -199,6 +210,8 @@ Deno.serve(async (req) => {
             nome_cliente: client.full_name,
             data_sessao: dataStr,
             hora_sessao: hora,
+            nome_profissional: profissionalName,
+            link_pagamento: paymentLinkUrl ?? "",
           });
 
           // 7. Inserir na fila whatsapp_outbox para o worker processar
@@ -211,6 +224,7 @@ Deno.serve(async (req) => {
               instance_name: instanceName,
               status: "queued",
               scheduled_for: new Date().toISOString(),
+              payment_link: paymentLinkUrl,
             });
 
           if (insertErr) {
