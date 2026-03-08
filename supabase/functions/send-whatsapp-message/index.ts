@@ -65,6 +65,7 @@ Deno.serve(async (req) => {
     if (qrInstance && qrInstance.instance_key && EVOLUTION_API_URL && EVOLUTION_API_KEY) {
       console.log("[send-whatsapp-message] Using QR Code mode via global Evolution API");
       const baseUrl = EVOLUTION_API_URL.replace(/\/$/, "");
+      const qrAbort = AbortSignal.timeout(30000);
       const evolutionRes = await fetch(`${baseUrl}/message/sendText/${qrInstance.instance_key}`, {
         method: "POST",
         headers: {
@@ -75,6 +76,7 @@ Deno.serve(async (req) => {
           number: fullPhone,
           text: message,
         }),
+        signal: qrAbort,
       });
 
       let evolutionData: any = {};
