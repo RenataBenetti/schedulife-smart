@@ -400,10 +400,39 @@ const AgendamentosTab = () => {
                 <span className="text-sm text-foreground">{format(new Date(apt.starts_at), "dd/MM/yyyy")}</span>
                 <span className="text-sm font-mono text-foreground">{format(new Date(apt.starts_at), "HH:mm")}</span>
                 <span className="text-sm text-muted-foreground">{durationMin} min</span>
-                <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full w-fit ${s.className}`}>
-                  <StatusIcon className="h-3.5 w-3.5" />
-                  {s.label}
-                </span>
+                <Select
+                  value={apt.status}
+                  onValueChange={async (newStatus) => {
+                    try {
+                      const { error } = await supabase
+                        .from("appointments")
+                        .update({ status: newStatus as any })
+                        .eq("id", apt.id);
+                      if (error) throw error;
+                      queryClient.invalidateQueries({ queryKey: ["appointments", workspace?.id] });
+                      toast({ title: "Status atualizado!" });
+                    } catch (e: any) {
+                      toast({ variant: "destructive", title: "Erro", description: e.message });
+                    }
+                  }}
+                >
+                  <SelectTrigger className="h-7 w-[120px] border-none bg-transparent p-0 focus:ring-0 focus:ring-offset-0">
+                    <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full w-fit ${s.className}`}>
+                      <StatusIcon className="h-3.5 w-3.5" />
+                      {s.label}
+                    </span>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(statusConfig).map(([key, val]) => (
+                      <SelectItem key={key} value={key}>
+                        <span className="flex items-center gap-2">
+                          <val.icon className="h-3.5 w-3.5" />
+                          {val.label}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <div className="flex items-center gap-1">
                   <button
                     onClick={() => { setWhatsAppApt(apt); setSelectedTemplateId(""); }}
