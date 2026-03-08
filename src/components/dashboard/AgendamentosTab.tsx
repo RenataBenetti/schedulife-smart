@@ -52,12 +52,11 @@ import {
 } from "@/components/ui/select";
 
 const statusConfig: Record<string, { label: string; icon: any; className: string }> = {
-  confirmed: { label: "Confirmado", icon: CheckCircle2, className: "bg-accent/10 text-accent" },
-  pending: { label: "Pendente", icon: AlertCircle, className: "bg-secondary/10 text-secondary" },
   scheduled: { label: "Agendado", icon: Calendar, className: "bg-primary/10 text-primary" },
-  canceled: { label: "Cancelado", icon: XCircle, className: "bg-destructive/10 text-destructive" },
+  confirmed: { label: "Confirmado", icon: CheckCircle2, className: "bg-accent/10 text-accent" },
   completed: { label: "Concluído", icon: CheckCircle2, className: "bg-accent/10 text-accent" },
-  no_show: { label: "Faltou", icon: XCircle, className: "bg-destructive/10 text-destructive" },
+  canceled: { label: "Cancelado", icon: XCircle, className: "bg-destructive/10 text-destructive" },
+  no_show: { label: "Faltou", icon: AlertCircle, className: "bg-secondary/10 text-secondary" },
 };
 
 const AgendamentosTab = () => {
