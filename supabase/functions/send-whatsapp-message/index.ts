@@ -138,6 +138,7 @@ Deno.serve(async (req) => {
 
     const apiUrl = evolution_api_url.replace(/\/$/, "");
     const whatsappNumber = `${fullPhone}@s.whatsapp.net`;
+    const cfgAbort = AbortSignal.timeout(30000);
     const evolutionRes = await fetch(`${apiUrl}/message/sendText/${evolution_instance}`, {
       method: "POST",
       headers: {
@@ -148,6 +149,7 @@ Deno.serve(async (req) => {
         number: whatsappNumber,
         text: message,
       }),
+      signal: cfgAbort,
     });
 
     let evolutionData: any = {};

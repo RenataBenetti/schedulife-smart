@@ -110,12 +110,14 @@ Deno.serve(async (req) => {
         // 5. Send via Evolution API
         const cleanPhone = msg.to_phone.replace(/\D/g, "");
         const phone = cleanPhone.startsWith("55") ? cleanPhone : `55${cleanPhone}`;
+        const abortSignal = AbortSignal.timeout(30000);
         const sendRes = await fetch(
           `${baseUrl}/message/sendText/${msg.instance_name}`,
           {
             method: "POST",
             headers: evoHeaders,
             body: JSON.stringify({ number: phone, text: fullText }),
+            signal: abortSignal,
           }
         );
 
