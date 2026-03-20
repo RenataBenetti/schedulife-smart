@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getUazApiConfig, uazApiFetch } from "../_shared/uazapi.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -16,21 +17,15 @@ Deno.serve(async (req) => {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
   );
 
-  const UAZAPI_BASE_URL = Deno.env.get("UAZAPI_BASE_URL");
-  const UAZAPI_INSTANCE_TOKEN = Deno.env.get("UAZAPI_INSTANCE_TOKEN");
-
-  if (!UAZAPI_BASE_URL || !UAZAPI_INSTANCE_TOKEN) {
+  const config = getUazApiConfig();
+  if (!config) {
     return new Response(
       JSON.stringify({ error: "UazAPI not configured" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 
-  const baseUrl = UAZAPI_BASE_URL.replace(/\/$/, "");
-  const uazHeaders = { token: UAZAPI_INSTANCE_TOKEN, "Content-Type": "application/json" };
-
   try {
-    // 1. Fetch queued messages ready to send (limit batch to 20)
     const now = new Date().toISOString();
     const { data: messages, error: fetchErr } = await supabaseAdmin
       .from("whatsapp_outbox")
@@ -54,14 +49,11 @@ Deno.serve(async (req) => {
       });
     }
 
-    console.log(`[whatsapp-worker] Processing ${messages.length} messages`);
-
     let sent = 0;
     let failed = 0;
 
     for (const msg of messages) {
       try {
-        // 2. Check daily limit for workspace
         const todayStart = new Date();
         todayStart.setHours(0, 0, 0, 0);
 
@@ -72,7 +64,6 @@ Deno.serve(async (req) => {
           .in("status", ["sent", "sending"])
           .gte("created_at", todayStart.toISOString());
 
-        // Get workspace settings
         const { data: settings } = await supabaseAdmin
           .from("whatsapp_settings")
           .select("daily_limit, send_delay_seconds")
@@ -94,39 +85,26 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        // 3. Mark as sending
         await supabaseAdmin
           .from("whatsapp_outbox")
           .update({ status: "sending", attempts: msg.attempts + 1 })
           .eq("id", msg.id);
 
-        // 4. Build message text (append payment link if present)
         let fullText = msg.message_text;
         if (msg.payment_link) {
           fullText += `\n\n💳 Link de pagamento: ${msg.payment_link}`;
         }
 
-        // 5. Send via UazAPI
         const cleanPhone = msg.to_phone.replace(/\D/g, "");
         const phone = cleanPhone.startsWith("55") ? cleanPhone : `55${cleanPhone}`;
-        const abortSignal = AbortSignal.timeout(30000);
-        const sendRes = await fetch(
-          `${baseUrl}/message/sendText`,
-          {
-            method: "POST",
-            headers: uazHeaders,
-            body: JSON.stringify({ number: phone, text: fullText }),
-            signal: abortSignal,
-          }
-        );
 
-        const sendData = await sendRes.json();
+        await uazApiFetch(config, {
+          method: "POST",
+          pathCandidates: ["/message/sendText", "/v1/message/sendText", "/message/send-text"],
+          body: { number: phone, text: fullText },
+          timeoutMs: 30000,
+        });
 
-        if (!sendRes.ok) {
-          throw new Error(sendData?.message || `HTTP ${sendRes.status}`);
-        }
-
-        // 6. Mark as sent
         await supabaseAdmin
           .from("whatsapp_outbox")
           .update({ status: "sent", sent_at: new Date().toISOString() })
@@ -134,7 +112,6 @@ Deno.serve(async (req) => {
 
         sent++;
 
-        // 7. Respect delay between sends
         const delayMs = (settings?.send_delay_seconds ?? 5) * 1000;
         if (delayMs > 0) {
           await new Promise((r) => setTimeout(r, delayMs));
@@ -153,7 +130,6 @@ Deno.serve(async (req) => {
       }
     }
 
-    console.log(`[whatsapp-worker] Done: ${sent} sent, ${failed} failed`);
     return new Response(
       JSON.stringify({ processed: messages.length, sent, failed }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }

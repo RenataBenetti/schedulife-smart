@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getUazApiConfig, uazApiFetch } from "../_shared/uazapi.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -47,13 +48,10 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Formatar número de telefone
     const cleanPhone = phone.replace(/\D/g, "");
     const fullPhone = cleanPhone.startsWith("55") ? cleanPhone : `55${cleanPhone}`;
 
-    // Strategy 1: Try QR Code mode (whatsapp_instances_qr + UazAPI)
-    const UAZAPI_BASE_URL = Deno.env.get("UAZAPI_BASE_URL");
-    const UAZAPI_INSTANCE_TOKEN = Deno.env.get("UAZAPI_INSTANCE_TOKEN");
+    const config = getUazApiConfig();
 
     const { data: qrInstance } = await supabase
       .from("whatsapp_instances_qr")
@@ -62,66 +60,34 @@ Deno.serve(async (req) => {
       .eq("status", "connected")
       .maybeSingle();
 
-    if (qrInstance && qrInstance.instance_key && UAZAPI_BASE_URL && UAZAPI_INSTANCE_TOKEN) {
-      console.log("[send-whatsapp-message] Using QR Code mode via UazAPI");
-      const baseUrl = UAZAPI_BASE_URL.replace(/\/$/, "");
-      const abortSignal = AbortSignal.timeout(30000);
-      const uazRes = await fetch(`${baseUrl}/message/sendText`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "token": UAZAPI_INSTANCE_TOKEN,
-        },
-        body: JSON.stringify({
-          number: fullPhone,
-          text: message,
-        }),
-        signal: abortSignal,
-      });
-
-      let uazData: any = {};
-      let sendStatus = "sent";
-      let errorMessage: string | null = null;
-
-      if (!uazRes.ok) {
-        sendStatus = "error";
-        const errText = await uazRes.text();
-        errorMessage = `UazAPI error ${uazRes.status}: ${errText}`;
-        console.error("UazAPI error:", errorMessage);
-      } else {
-        uazData = await uazRes.json();
-      }
-
-      // Log
-      const logRow: any = { workspace_id, phone: fullPhone, body: message, status: sendStatus };
-      if (appointment_id) logRow.appointment_id = appointment_id;
-      if (client_id) logRow.client_id = client_id;
-      if (template_id) logRow.template_id = template_id;
-      if (rule_id) logRow.rule_id = rule_id;
-      if (errorMessage) logRow.error_message = errorMessage;
-      await supabase.from("message_logs").insert(logRow);
-
-      if (sendStatus === "error") {
-        return new Response(JSON.stringify({ success: false, error: errorMessage }), {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      return new Response(JSON.stringify({ success: true, data: uazData }), {
+    if (!config || !qrInstance || !qrInstance.instance_key) {
+      return new Response(JSON.stringify({ error: "WhatsApp não configurado para este workspace. Conecte via QR Code em Configurações → Integrações." }), {
+        status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // No connected instance found
-    return new Response(JSON.stringify({ error: "WhatsApp não configurado para este workspace. Conecte via QR Code em Configurações → Integrações." }), {
-      status: 400,
+    const sendRes = await uazApiFetch(config, {
+      method: "POST",
+      pathCandidates: ["/message/sendText", "/v1/message/sendText", "/message/send-text"],
+      body: { number: fullPhone, text: message },
+    });
+
+    const logRow: any = { workspace_id, phone: fullPhone, body: message, status: "sent" };
+    if (appointment_id) logRow.appointment_id = appointment_id;
+    if (client_id) logRow.client_id = client_id;
+    if (template_id) logRow.template_id = template_id;
+    if (rule_id) logRow.rule_id = rule_id;
+
+    await supabase.from("message_logs").insert(logRow);
+
+    return new Response(JSON.stringify({ success: true, data: sendRes.data }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err: any) {
     console.error("send-whatsapp-message error:", err);
     return new Response(JSON.stringify({ error: err.message }), {
-      status: 500,
+      status: 502,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }

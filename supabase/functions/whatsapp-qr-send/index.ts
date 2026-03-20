@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getUazApiConfig, uazApiFetch } from "../_shared/uazapi.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -47,7 +48,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Get instance
     const { data: instance } = await supabaseAdmin
       .from("whatsapp_instances_qr")
       .select("*")
@@ -61,50 +61,31 @@ Deno.serve(async (req) => {
       });
     }
 
-    const UAZAPI_BASE_URL = Deno.env.get("UAZAPI_BASE_URL");
-    const UAZAPI_INSTANCE_TOKEN = Deno.env.get("UAZAPI_INSTANCE_TOKEN");
-
-    if (!UAZAPI_BASE_URL || !UAZAPI_INSTANCE_TOKEN) {
+    const config = getUazApiConfig();
+    if (!config) {
       return new Response(JSON.stringify({ error: "Servidor QR não configurado" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const baseUrl = UAZAPI_BASE_URL.replace(/\/$/, "");
-    const headers = { "token": UAZAPI_INSTANCE_TOKEN, "Content-Type": "application/json" };
-
-    // Normalize phone
     const cleanPhone = to_phone.replace(/\D/g, "");
     const phone = cleanPhone.startsWith("55") ? cleanPhone : `55${cleanPhone}`;
     const textMessage = message || "Agendix: conexão QR realizada com sucesso ✅";
 
-    const sendRes = await fetch(`${baseUrl}/message/sendText`, {
+    const sendRes = await uazApiFetch(config, {
       method: "POST",
-      headers,
-      body: JSON.stringify({
-        number: phone,
-        text: textMessage,
-      }),
+      pathCandidates: ["/message/sendText", "/v1/message/sendText", "/message/send-text"],
+      body: { number: phone, text: textMessage },
     });
 
-    const sendData = await sendRes.json();
-    console.log("[whatsapp-qr-send] Response:", JSON.stringify(sendData));
-
-    if (!sendRes.ok) {
-      return new Response(JSON.stringify({ error: sendData?.message || "Erro ao enviar mensagem" }), {
-        status: 502,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    return new Response(JSON.stringify({ success: true, data: sendData }), {
+    return new Response(JSON.stringify({ success: true, data: sendRes.data }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err: any) {
     console.error("[whatsapp-qr-send] Error:", err);
     return new Response(JSON.stringify({ error: err.message }), {
-      status: 500,
+      status: 502,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
