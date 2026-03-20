@@ -55,33 +55,14 @@ Deno.serve(async (req) => {
       console.error("[process-message-rules] Error fetching QR instances:", qrErr);
     }
 
-    // 2. Buscar workspaces com Evolution API direta (whatsapp_config)
-    const { data: configs, error: configErr } = await supabase
-      .from("whatsapp_config")
-      .select("workspace_id, evolution_api_url, evolution_api_key, evolution_instance, connection_status")
-      .eq("connection_status", "connected");
-
-    if (configErr) {
-      console.error("[process-message-rules] Error fetching configs:", configErr);
-    }
-
     // Montar mapa de workspaces conectados com instance_name
     const connectedWorkspaces = new Map<string, string>(); // workspace_id -> instance_name
 
-    // QR instances têm prioridade
+    // QR instances (UazAPI)
     if (qrInstances) {
       for (const inst of qrInstances) {
         if (inst.instance_key) {
           connectedWorkspaces.set(inst.workspace_id, inst.instance_key);
-        }
-      }
-    }
-
-    // Fallback para whatsapp_config (Evolution API direta)
-    if (configs) {
-      for (const cfg of configs) {
-        if (!connectedWorkspaces.has(cfg.workspace_id) && cfg.evolution_instance) {
-          connectedWorkspaces.set(cfg.workspace_id, cfg.evolution_instance);
         }
       }
     }
