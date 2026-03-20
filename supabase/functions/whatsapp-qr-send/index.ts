@@ -61,25 +61,25 @@ Deno.serve(async (req) => {
       });
     }
 
-    const EVOLUTION_API_URL = Deno.env.get("EVOLUTION_API_URL");
-    const EVOLUTION_API_KEY = Deno.env.get("EVOLUTION_API_KEY");
+    const UAZAPI_BASE_URL = Deno.env.get("UAZAPI_BASE_URL");
+    const UAZAPI_INSTANCE_TOKEN = Deno.env.get("UAZAPI_INSTANCE_TOKEN");
 
-    if (!EVOLUTION_API_URL || !EVOLUTION_API_KEY) {
+    if (!UAZAPI_BASE_URL || !UAZAPI_INSTANCE_TOKEN) {
       return new Response(JSON.stringify({ error: "Servidor QR não configurado" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const baseUrl = EVOLUTION_API_URL.replace(/\/$/, "");
-    const headers = { "apikey": EVOLUTION_API_KEY, "Content-Type": "application/json" };
+    const baseUrl = UAZAPI_BASE_URL.replace(/\/$/, "");
+    const headers = { "token": UAZAPI_INSTANCE_TOKEN, "Content-Type": "application/json" };
 
     // Normalize phone
     const cleanPhone = to_phone.replace(/\D/g, "");
     const phone = cleanPhone.startsWith("55") ? cleanPhone : `55${cleanPhone}`;
     const textMessage = message || "Agendix: conexão QR realizada com sucesso ✅";
 
-    const sendRes = await fetch(`${baseUrl}/message/sendText/${instance.instance_key}`, {
+    const sendRes = await fetch(`${baseUrl}/message/sendText`, {
       method: "POST",
       headers,
       body: JSON.stringify({

@@ -16,18 +16,18 @@ Deno.serve(async (req) => {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
   );
 
-  const EVOLUTION_API_URL = Deno.env.get("EVOLUTION_API_URL");
-  const EVOLUTION_API_KEY = Deno.env.get("EVOLUTION_API_KEY");
+  const UAZAPI_BASE_URL = Deno.env.get("UAZAPI_BASE_URL");
+  const UAZAPI_INSTANCE_TOKEN = Deno.env.get("UAZAPI_INSTANCE_TOKEN");
 
-  if (!EVOLUTION_API_URL || !EVOLUTION_API_KEY) {
+  if (!UAZAPI_BASE_URL || !UAZAPI_INSTANCE_TOKEN) {
     return new Response(
-      JSON.stringify({ error: "Evolution API not configured" }),
+      JSON.stringify({ error: "UazAPI not configured" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 
-  const baseUrl = EVOLUTION_API_URL.replace(/\/$/, "");
-  const evoHeaders = { apikey: EVOLUTION_API_KEY, "Content-Type": "application/json" };
+  const baseUrl = UAZAPI_BASE_URL.replace(/\/$/, "");
+  const uazHeaders = { token: UAZAPI_INSTANCE_TOKEN, "Content-Type": "application/json" };
 
   try {
     // 1. Fetch queued messages ready to send (limit batch to 20)
@@ -82,7 +82,6 @@ Deno.serve(async (req) => {
         const dailyLimit = settings?.daily_limit ?? 100;
 
         if ((sentToday ?? 0) >= dailyLimit) {
-          // Mark as failed with limit message
           await supabaseAdmin
             .from("whatsapp_outbox")
             .update({
@@ -107,15 +106,15 @@ Deno.serve(async (req) => {
           fullText += `\n\n💳 Link de pagamento: ${msg.payment_link}`;
         }
 
-        // 5. Send via Evolution API
+        // 5. Send via UazAPI
         const cleanPhone = msg.to_phone.replace(/\D/g, "");
         const phone = cleanPhone.startsWith("55") ? cleanPhone : `55${cleanPhone}`;
         const abortSignal = AbortSignal.timeout(30000);
         const sendRes = await fetch(
-          `${baseUrl}/message/sendText/${msg.instance_name}`,
+          `${baseUrl}/message/sendText`,
           {
             method: "POST",
-            headers: evoHeaders,
+            headers: uazHeaders,
             body: JSON.stringify({ number: phone, text: fullText }),
             signal: abortSignal,
           }

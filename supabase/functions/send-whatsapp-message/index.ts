@@ -51,9 +51,9 @@ Deno.serve(async (req) => {
     const cleanPhone = phone.replace(/\D/g, "");
     const fullPhone = cleanPhone.startsWith("55") ? cleanPhone : `55${cleanPhone}`;
 
-    // Strategy 1: Try QR Code mode (whatsapp_instances_qr + global Evolution API keys)
-    const EVOLUTION_API_URL = Deno.env.get("EVOLUTION_API_URL");
-    const EVOLUTION_API_KEY = Deno.env.get("EVOLUTION_API_KEY");
+    // Strategy 1: Try QR Code mode (whatsapp_instances_qr + UazAPI)
+    const UAZAPI_BASE_URL = Deno.env.get("UAZAPI_BASE_URL");
+    const UAZAPI_INSTANCE_TOKEN = Deno.env.get("UAZAPI_INSTANCE_TOKEN");
 
     const { data: qrInstance } = await supabase
       .from("whatsapp_instances_qr")
@@ -62,34 +62,34 @@ Deno.serve(async (req) => {
       .eq("status", "connected")
       .maybeSingle();
 
-    if (qrInstance && qrInstance.instance_key && EVOLUTION_API_URL && EVOLUTION_API_KEY) {
-      console.log("[send-whatsapp-message] Using QR Code mode via global Evolution API");
-      const baseUrl = EVOLUTION_API_URL.replace(/\/$/, "");
-      const qrAbort = AbortSignal.timeout(30000);
-      const evolutionRes = await fetch(`${baseUrl}/message/sendText/${qrInstance.instance_key}`, {
+    if (qrInstance && qrInstance.instance_key && UAZAPI_BASE_URL && UAZAPI_INSTANCE_TOKEN) {
+      console.log("[send-whatsapp-message] Using QR Code mode via UazAPI");
+      const baseUrl = UAZAPI_BASE_URL.replace(/\/$/, "");
+      const abortSignal = AbortSignal.timeout(30000);
+      const uazRes = await fetch(`${baseUrl}/message/sendText`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "apikey": EVOLUTION_API_KEY,
+          "token": UAZAPI_INSTANCE_TOKEN,
         },
         body: JSON.stringify({
           number: fullPhone,
           text: message,
         }),
-        signal: qrAbort,
+        signal: abortSignal,
       });
 
-      let evolutionData: any = {};
+      let uazData: any = {};
       let sendStatus = "sent";
       let errorMessage: string | null = null;
 
-      if (!evolutionRes.ok) {
+      if (!uazRes.ok) {
         sendStatus = "error";
-        const errText = await evolutionRes.text();
-        errorMessage = `Evolution API error ${evolutionRes.status}: ${errText}`;
-        console.error("Evolution API error:", errorMessage);
+        const errText = await uazRes.text();
+        errorMessage = `UazAPI error ${uazRes.status}: ${errText}`;
+        console.error("UazAPI error:", errorMessage);
       } else {
-        evolutionData = await evolutionRes.json();
+        uazData = await uazRes.json();
       }
 
       // Log
@@ -108,79 +108,14 @@ Deno.serve(async (req) => {
         });
       }
 
-      return new Response(JSON.stringify({ success: true, data: evolutionData }), {
+      return new Response(JSON.stringify({ success: true, data: uazData }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Strategy 2: Fallback to whatsapp_config (direct Evolution API config per workspace)
-    const { data: waConfig, error: configErr } = await supabase
-      .from("whatsapp_config")
-      .select("*")
-      .eq("workspace_id", workspace_id)
-      .maybeSingle();
-
-    if (configErr || !waConfig) {
-      return new Response(JSON.stringify({ error: "WhatsApp não configurado para este workspace. Conecte via QR Code em Configurações → Integrações." }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    const { evolution_api_url, evolution_api_key, evolution_instance } = waConfig as any;
-
-    if (!evolution_api_url || !evolution_api_key || !evolution_instance) {
-      return new Response(JSON.stringify({ error: "Configuração da Evolution API incompleta" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    const apiUrl = evolution_api_url.replace(/\/$/, "");
-    const whatsappNumber = `${fullPhone}@s.whatsapp.net`;
-    const cfgAbort = AbortSignal.timeout(30000);
-    const evolutionRes = await fetch(`${apiUrl}/message/sendText/${evolution_instance}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "apikey": evolution_api_key,
-      },
-      body: JSON.stringify({
-        number: whatsappNumber,
-        text: message,
-      }),
-      signal: cfgAbort,
-    });
-
-    let evolutionData: any = {};
-    let sendStatus = "sent";
-    let errorMessage: string | null = null;
-
-    if (!evolutionRes.ok) {
-      sendStatus = "error";
-      const errText = await evolutionRes.text();
-      errorMessage = `Evolution API error ${evolutionRes.status}: ${errText}`;
-      console.error("Evolution API error:", errorMessage);
-    } else {
-      evolutionData = await evolutionRes.json();
-    }
-
-    const logRow: any = { workspace_id, phone: fullPhone, body: message, status: sendStatus };
-    if (appointment_id) logRow.appointment_id = appointment_id;
-    if (client_id) logRow.client_id = client_id;
-    if (template_id) logRow.template_id = template_id;
-    if (rule_id) logRow.rule_id = rule_id;
-    if (errorMessage) logRow.error_message = errorMessage;
-    await supabase.from("message_logs").insert(logRow);
-
-    if (sendStatus === "error") {
-      return new Response(JSON.stringify({ success: false, error: errorMessage }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    return new Response(JSON.stringify({ success: true, data: evolutionData }), {
+    // No connected instance found
+    return new Response(JSON.stringify({ error: "WhatsApp não configurado para este workspace. Conecte via QR Code em Configurações → Integrações." }), {
+      status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err: any) {
