@@ -1,4 +1,11 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  extractPhone,
+  extractStatus,
+  getUazApiConfig,
+  isConnectedStatus,
+  uazApiFetch,
+} from "../_shared/uazapi.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -47,7 +54,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Get instance from DB
     const { data: instance } = await supabaseAdmin
       .from("whatsapp_instances_qr")
       .select("*")
@@ -60,30 +66,25 @@ Deno.serve(async (req) => {
       });
     }
 
-    const UAZAPI_BASE_URL = Deno.env.get("UAZAPI_BASE_URL");
-    const UAZAPI_INSTANCE_TOKEN = Deno.env.get("UAZAPI_INSTANCE_TOKEN");
-
-    if (!UAZAPI_BASE_URL || !UAZAPI_INSTANCE_TOKEN) {
+    const config = getUazApiConfig();
+    if (!config) {
       return new Response(JSON.stringify({ status: instance.status, connected: instance.status === "connected" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const baseUrl = UAZAPI_BASE_URL.replace(/\/$/, "");
-    const headers = { "token": UAZAPI_INSTANCE_TOKEN, "Content-Type": "application/json" };
+    const statusRes = await uazApiFetch(config, {
+      method: "GET",
+      pathCandidates: ["/instance/status", "/v1/instance/status"],
+    });
 
-    const res = await fetch(`${baseUrl}/instance/status`, { headers });
-    const data = await res.json();
-    const state = data?.status ?? data?.state ?? data?.instance?.state ?? "unknown";
-    const connected = state === "connected" || state === "open";
+    const state = extractStatus(statusRes.data);
+    const connected = isConnectedStatus(state);
     const newStatus = connected ? "connected" : "disconnected";
 
-    // Extract phone number from status response
-    const rawPhone = data?.phone ?? data?.me?.id ?? data?.owner ?? null;
-    const phoneNumber = rawPhone ? rawPhone.replace(/@.*$/, "").replace(/\D/g, "") : null;
+    const phoneNumber = extractPhone(statusRes.data);
     const updatedPhone = phoneNumber || instance.phone_number;
 
-    // Update DB if changed
     if (newStatus !== instance.status || (phoneNumber && phoneNumber !== instance.phone_number)) {
       await supabaseAdmin
         .from("whatsapp_instances_qr")

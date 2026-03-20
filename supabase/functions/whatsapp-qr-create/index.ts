@@ -1,4 +1,11 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  extractQrBase64,
+  extractStatus,
+  getUazApiConfig,
+  isConnectedStatus,
+  uazApiFetch,
+} from "../_shared/uazapi.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -47,7 +54,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Verify membership
     const { data: member } = await supabaseAdmin
       .from("workspace_members")
       .select("id")
@@ -62,119 +68,89 @@ Deno.serve(async (req) => {
       });
     }
 
-    const UAZAPI_BASE_URL = Deno.env.get("UAZAPI_BASE_URL");
-    const UAZAPI_INSTANCE_TOKEN = Deno.env.get("UAZAPI_INSTANCE_TOKEN");
-
-    if (!UAZAPI_BASE_URL || !UAZAPI_INSTANCE_TOKEN) {
+    const config = getUazApiConfig();
+    if (!config) {
       return new Response(JSON.stringify({ error: "Servidor de WhatsApp QR não configurado. Contate o suporte." }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const baseUrl = UAZAPI_BASE_URL.replace(/\/$/, "");
-    const headers = { "token": UAZAPI_INSTANCE_TOKEN, "Content-Type": "application/json" };
     const instanceName = `agendix-${workspace_id.substring(0, 8)}`;
 
-    // Step 1: Check current status
-    console.log(`[whatsapp-qr-create] Checking status for UazAPI instance`);
+    // Check current status (best-effort)
     let isConnected = false;
-
     try {
-      const statusRes = await fetch(`${baseUrl}/instance/status`, { headers });
-      if (statusRes.ok) {
-        const statusData = await statusRes.json();
-        console.log(`[whatsapp-qr-create] Status:`, JSON.stringify(statusData));
-        const state = statusData?.status ?? statusData?.state ?? statusData?.instance?.state ?? "";
-        isConnected = state === "connected" || state === "open";
-      }
-    } catch (e) {
-      console.error(`[whatsapp-qr-create] Error checking status:`, e);
-    }
-
-    // Step 2: If connected, disconnect first to generate new QR
-    if (isConnected) {
-      console.log(`[whatsapp-qr-create] Instance is connected, disconnecting to force new QR...`);
-      try {
-        const disconnectRes = await fetch(`${baseUrl}/instance/disconnect`, {
-          method: "POST",
-          headers,
-        });
-        const disconnectData = await disconnectRes.text();
-        console.log(`[whatsapp-qr-create] Disconnect response (${disconnectRes.status}):`, disconnectData);
-        await new Promise((r) => setTimeout(r, 2000));
-      } catch (e) {
-        console.error(`[whatsapp-qr-create] Disconnect error:`, e);
-      }
-    }
-
-    // Step 3: Connect (generates QR code)
-    console.log(`[whatsapp-qr-create] Connecting to generate QR code`);
-    const connectRes = await fetch(`${baseUrl}/instance/connect`, {
-      method: "POST",
-      headers,
-    });
-    const connectData = await connectRes.json();
-    console.log(`[whatsapp-qr-create] Connect response (${connectRes.status}):`, JSON.stringify(connectData));
-
-    // Step 4: Get QR code
-    let qrSrc: string | null = null;
-
-    // Try to get QR from connect response first
-    const qrFromConnect = connectData?.qrcode ?? connectData?.base64 ?? connectData?.qr ?? null;
-    if (qrFromConnect) {
-      qrSrc = qrFromConnect.startsWith("data:") ? qrFromConnect : `data:image/png;base64,${qrFromConnect}`;
-    }
-
-    // If not in connect response, fetch via dedicated QR endpoint
-    if (!qrSrc) {
-      await new Promise((r) => setTimeout(r, 1500));
-      try {
-        const qrRes = await fetch(`${baseUrl}/instance/qr`, { headers });
-        if (qrRes.ok) {
-          const qrData = await qrRes.json();
-          console.log(`[whatsapp-qr-create] QR response:`, JSON.stringify(qrData).substring(0, 200));
-          const qrBase64 = qrData?.qrcode ?? qrData?.base64 ?? qrData?.qr ?? null;
-          if (qrBase64) {
-            qrSrc = qrBase64.startsWith("data:") ? qrBase64 : `data:image/png;base64,${qrBase64}`;
-          }
-        }
-      } catch (e) {
-        console.error(`[whatsapp-qr-create] Error fetching QR:`, e);
-      }
-    }
-
-    // If still connected and no QR, return connected status
-    if (!qrSrc && isConnected) {
-      console.log(`[whatsapp-qr-create] Instance still connected, returning connected status`);
-      return new Response(JSON.stringify({
-        success: true,
-        instance_key: instanceName,
-        qr: null,
-        already_connected: true,
-      }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      const statusRes = await uazApiFetch(config, {
+        method: "GET",
+        pathCandidates: ["/instance/status", "/v1/instance/status"],
       });
+      const state = extractStatus(statusRes.data);
+      isConnected = isConnectedStatus(state);
+      console.log(`[whatsapp-qr-create] Status path=${statusRes.pathUsed} auth=${statusRes.authMode} state=${state}`);
+    } catch (e) {
+      console.warn("[whatsapp-qr-create] Could not verify status before connect:", e);
     }
 
-    // Configure webhook
+    if (isConnected) {
+      try {
+        const disconnectRes = await uazApiFetch(config, {
+          method: "POST",
+          pathCandidates: ["/instance/disconnect", "/v1/instance/disconnect"],
+          body: { instanceName, instance: instanceName },
+        });
+        console.log(`[whatsapp-qr-create] Disconnect path=${disconnectRes.pathUsed} auth=${disconnectRes.authMode}`);
+        await new Promise((r) => setTimeout(r, 1200));
+      } catch (e) {
+        console.warn("[whatsapp-qr-create] Disconnect failed, continuing:", e);
+      }
+    }
+
+    const connectRes = await uazApiFetch(config, {
+      method: "POST",
+      pathCandidates: ["/instance/connect", "/v1/instance/connect", "/instance/init", "/v1/instance/init"],
+      body: { instanceName, instance: instanceName, name: instanceName },
+    });
+
+    console.log(`[whatsapp-qr-create] Connect path=${connectRes.pathUsed} auth=${connectRes.authMode}`);
+
+    let qrBase64 = extractQrBase64(connectRes.data);
+
+    if (!qrBase64) {
+      try {
+        const qrRes = await uazApiFetch(config, {
+          method: "GET",
+          pathCandidates: ["/instance/qr", "/v1/instance/qr"],
+        });
+        console.log(`[whatsapp-qr-create] QR path=${qrRes.pathUsed} auth=${qrRes.authMode}`);
+        qrBase64 = extractQrBase64(qrRes.data);
+      } catch (e) {
+        console.warn("[whatsapp-qr-create] Could not fetch QR endpoint:", e);
+      }
+    }
+
+    const qrSrc = qrBase64
+      ? (qrBase64.startsWith("data:") ? qrBase64 : `data:image/png;base64,${qrBase64}`)
+      : null;
+
+    // Configure webhook (best-effort)
     const webhookUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/whatsapp-qr-webhook`;
     try {
-      await fetch(`${baseUrl}/webhook/set`, {
+      const webhookRes = await uazApiFetch(config, {
         method: "POST",
-        headers,
-        body: JSON.stringify({
+        pathCandidates: ["/webhook/set", "/v1/webhook/set"],
+        body: {
           url: webhookUrl,
           enabled: true,
-          events: ["connection", "qrcode", "status"],
-        }),
+          events: ["connection", "qrcode", "status", "CONNECTION_UPDATE", "QRCODE_UPDATED", "STATUS_INSTANCE"],
+          instanceName,
+        },
       });
-      console.log(`[whatsapp-qr-create] Webhook configured: ${webhookUrl}`);
+      console.log(`[whatsapp-qr-create] Webhook path=${webhookRes.pathUsed} auth=${webhookRes.authMode}`);
     } catch (e) {
-      console.warn(`[whatsapp-qr-create] Could not set webhook:`, e);
+      console.warn("[whatsapp-qr-create] Could not set webhook:", e);
     }
 
-    // Upsert instance record
     const { error: dbError } = await supabaseAdmin
       .from("whatsapp_instances_qr")
       .upsert({
@@ -192,13 +168,14 @@ Deno.serve(async (req) => {
       success: true,
       instance_key: instanceName,
       qr: qrSrc,
+      status: qrSrc ? "connecting" : "disconnected",
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err: any) {
     console.error("[whatsapp-qr-create] Error:", err);
     return new Response(JSON.stringify({ error: err.message }), {
-      status: 500,
+      status: 502,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
