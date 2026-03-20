@@ -1,22 +1,34 @@
 
 
-## Diagnóstico: Preview preto
+## Migração Evolution API → UazAPI
 
 ### Análise
 
-Inspecionei todos os arquivos críticos do projeto (`main.tsx`, `App.tsx`, `Index.tsx`, `index.css`, `index.html`, `vite.config.ts`, `tsconfig.json`, hooks, contextos) e **não encontrei nenhum erro de código** que causaria falha no build.
+A UazAPI tem endpoints e formatos de payload diferentes da Evolution API. A migração exige atualizar **6 Edge Functions** que fazem chamadas HTTP diretas à API.
 
-- Nenhum log de console ou erro de rede foi capturado (indica que o app nem está carregando — o build não completou)
-- Todos os imports e referências estão corretos
-- As Edge Functions (Deno) são independentes do build do frontend
+### O que muda
 
-### Causa provável
+1. **Secrets**: Substituir `EVOLUTION_API_URL` e `EVOLUTION_API_KEY` pelas credenciais da UazAPI
+2. **Criação de instância** (`whatsapp-qr-create`): Adaptar endpoint de criação + formato de resposta do QR code
+3. **Status de conexão** (`whatsapp-qr-status`): Adaptar endpoint `connectionState` para o equivalente da UazAPI
+4. **Webhook** (`whatsapp-qr-webhook`): Ajustar parsing dos eventos (`connection.update`, `qrcode.updated`) para o formato UazAPI
+5. **Envio de mensagens** (`send-whatsapp-message`, `whatsapp-qr-send`, `whatsapp-worker`): Adaptar endpoint `/message/sendText/{instance}` e payload `{ number, text }` para o formato UazAPI
+6. **Banco de dados**: Nenhuma mudança — as tabelas `whatsapp_instances_qr`, `whatsapp_outbox`, `message_logs` permanecem iguais
 
-O preview preto com a mensagem "Preview has not been built yet" indica que o **build do Vite travou** ou houve um **erro transitório no servidor de build**. Isso não é causado por código quebrado.
+### Pré-requisitos
 
-### Plano de ação
+- URL base da UazAPI e token/chave de API
+- Documentação dos endpoints da UazAPI (criação de instância, envio, status, webhook)
 
-1. **Forçar um rebuild** — Fazer uma pequena edição inofensiva em qualquer arquivo (por exemplo, adicionar um comentário em `src/main.tsx`) para disparar um novo ciclo de build
-2. **Remover `App.css` residual** — O arquivo `src/App.css` contém CSS do template padrão do Vite (limita `#root` a 1280px, adiciona padding). Embora não seja importado, é lixo que pode ser removido
-3. Se o build continuar falhando após a edição, usar o **Histórico de versões** para restaurar uma versão anterior funcional
+### Riscos
+
+- UazAPI é WhatsApp não-oficial (mesmo risco da Evolution API)
+- Período de transição pode causar interrupção no envio de mensagens
+- Formato de webhook pode variar entre versões
+
+### Recomendação
+
+A migração é viável e de médio esforço (~6 arquivos). Se você já tem acesso à UazAPI e sua documentação, posso adaptar todas as funções. Precisaria que você:
+1. Forneça a **URL base** e **chave de API** da UazAPI
+2. Confirme os endpoints principais (envio de texto, criação de instância, status)
 
