@@ -19,51 +19,62 @@ Deno.serve(async (req) => {
     const body = await req.json();
     console.log("[whatsapp-qr-webhook] Received:", JSON.stringify(body));
 
-    const event = body?.event;
-    const instance = body?.instance;
-    const instanceName = instance?.instanceName ?? body?.instanceName;
+    // UazAPI webhook format - detect event type
+    const event = body?.event ?? body?.type ?? body?.action;
+    const instanceName = body?.instance ?? body?.instanceName ?? body?.instance?.instanceName;
 
-    if (!instanceName) {
-      return new Response(JSON.stringify({ ok: true, message: "No instance name" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    // Try to find workspace by matching instance_key pattern
+    // UazAPI may send instance info differently
+    let workspaceFilter: any = {};
+    if (instanceName) {
+      workspaceFilter = { instance_key: instanceName };
     }
 
-    // Handle connection update
-    if (event === "connection.update" || event === "status.instance") {
-      const state = body?.data?.state ?? body?.state ?? "unknown";
-      const connected = state === "open";
+    // Handle connection/status events
+    if (event === "connection" || event === "status" || event === "connection.update" || event === "status.instance") {
+      const state = body?.data?.state ?? body?.state ?? body?.status ?? body?.data?.status ?? "unknown";
+      const connected = state === "connected" || state === "open";
       const newStatus = connected ? "connected" : "disconnected";
 
-      // Extract phone number from webhook payload when connected
-      const rawPhone = body?.data?.me?.id ?? body?.data?.wuid ?? null;
+      // Extract phone number
+      const rawPhone = body?.data?.phone ?? body?.phone ?? body?.data?.me?.id ?? body?.data?.wuid ?? null;
       const phoneNumber = rawPhone ? rawPhone.replace(/@.*$/, "").replace(/\D/g, "") : null;
 
-      const { error } = await supabaseAdmin
+      let query = supabaseAdmin
         .from("whatsapp_instances_qr")
         .update({
           status: newStatus,
           qr_code: connected ? null : undefined,
           ...(phoneNumber ? { phone_number: phoneNumber } : {}),
-        })
-        .eq("instance_key", instanceName);
+        });
 
+      if (instanceName) {
+        query = query.eq("instance_key", instanceName);
+      }
+
+      const { error } = await query;
       if (error) {
         console.error("[whatsapp-qr-webhook] DB update error:", error);
       }
 
-      console.log(`[whatsapp-qr-webhook] Instance ${instanceName} -> ${newStatus}`);
+      console.log(`[whatsapp-qr-webhook] Status -> ${newStatus}${phoneNumber ? ` (phone: ${phoneNumber})` : ""}`);
     }
 
-    // Handle QR code update
-    if (event === "qrcode.updated") {
-      const qrBase64 = body?.data?.qrcode?.base64 ?? body?.data?.base64;
+    // Handle QR code events
+    if (event === "qrcode" || event === "qrcode.updated") {
+      const qrBase64 = body?.data?.qrcode ?? body?.data?.base64 ?? body?.qrcode ?? body?.base64 ?? body?.data?.qr;
       if (qrBase64) {
         const qrSrc = qrBase64.startsWith("data:") ? qrBase64 : `data:image/png;base64,${qrBase64}`;
-        await supabaseAdmin
+
+        let query = supabaseAdmin
           .from("whatsapp_instances_qr")
-          .update({ qr_code: qrSrc, status: "connecting" })
-          .eq("instance_key", instanceName);
+          .update({ qr_code: qrSrc, status: "connecting" });
+
+        if (instanceName) {
+          query = query.eq("instance_key", instanceName);
+        }
+
+        await query;
       }
     }
 
