@@ -12,8 +12,8 @@ export const FooterSection = () => {
             <span className="text-lg font-bold text-background">Agendix</span>
           </div>
           <div className="flex items-center gap-6 text-sm text-background/60">
-            <a href="/termos.html" className="hover:text-background transition-colors">Termos de Uso</a>
-            <a href="/privacidade.html" className="hover:text-background transition-colors">Privacidade</a>
+            <a href="/termos.html" className="hover:text-background transition-colors">Termos de Serviço</a>
+            <a href="/privacidade.html" className="hover:text-background transition-colors">Política de Privacidade</a>
             <a href="mailto:contato@agendix.com.br" className="hover:text-background transition-colors">Contato</a>
           </div>
           <p className="text-sm text-background/40">
