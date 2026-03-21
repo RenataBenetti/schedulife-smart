@@ -111,7 +111,16 @@ Deno.serve(async (req) => {
 
     const connectRes = await uazApiFetch(config, {
       method: "POST",
-      pathCandidates: ["/instance/connect", "/v1/instance/connect", "/instance/init", "/v1/instance/init"],
+      pathCandidates: [
+        `/instance/connect?instance=${encodeURIComponent(instanceName)}`,
+        `/v1/instance/connect?instance=${encodeURIComponent(instanceName)}`,
+        "/instance/connect",
+        "/v1/instance/connect",
+        `/instance/init?instance=${encodeURIComponent(instanceName)}`,
+        `/v1/instance/init?instance=${encodeURIComponent(instanceName)}`,
+        "/instance/init",
+        "/v1/instance/init",
+      ],
       body: { instanceName, instance: instanceName, name: instanceName },
     });
 
@@ -126,6 +135,8 @@ Deno.serve(async (req) => {
           pathCandidates: [
             `/instance/qr?instance=${encodeURIComponent(instanceName)}`,
             `/v1/instance/qr?instance=${encodeURIComponent(instanceName)}`,
+            `/instance/qrcode?instance=${encodeURIComponent(instanceName)}`,
+            `/v1/instance/qrcode?instance=${encodeURIComponent(instanceName)}`,
           ],
         });
         console.log(`[whatsapp-qr-create] QR path=${qrRes.pathUsed} auth=${qrRes.authMode}`);
