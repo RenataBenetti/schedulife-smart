@@ -136,12 +136,48 @@ export async function uazApiFetch(config: UazApiConfig, options: FetchOptions): 
 }
 
 export function extractStatus(data: any): string {
-  return data?.status ?? data?.state ?? data?.instance?.state ?? "unknown";
+  const candidates = [
+    data?.status,
+    data?.state,
+    data?.instance?.state,
+    data?.instance?.status,
+    data?.data?.status,
+    data?.data?.state,
+    data?.data?.instance?.state,
+    data?.data?.instance?.status,
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && candidate.trim()) return candidate;
+    if (typeof candidate === "number" || typeof candidate === "boolean") return String(candidate);
+    if (candidate && typeof candidate === "object") {
+      const nested = (candidate as Record<string, unknown>)?.state ?? (candidate as Record<string, unknown>)?.status;
+      if (typeof nested === "string" && nested.trim()) return nested;
+      if (typeof nested === "number" || typeof nested === "boolean") return String(nested);
+    }
+  }
+
+  return "unknown";
 }
 
-export function isConnectedStatus(status: string): boolean {
-  const normalized = status.toLowerCase();
-  return normalized === "connected" || normalized === "open";
+export function isConnectedStatus(status: unknown): boolean {
+  if (typeof status === "boolean") return status;
+
+  if (status && typeof status === "object") {
+    const obj = status as Record<string, unknown>;
+    if (typeof obj.connected === "boolean") return obj.connected;
+    if (typeof obj.isConnected === "boolean") return obj.isConnected;
+  }
+
+  const normalized = String(status ?? "").toLowerCase();
+  return (
+    normalized === "connected" ||
+    normalized === "open" ||
+    normalized === "online" ||
+    normalized === "ready" ||
+    normalized.includes("connected") ||
+    normalized.includes("open")
+  );
 }
 
 export function extractPhone(data: any): string | null {
@@ -150,5 +186,28 @@ export function extractPhone(data: any): string | null {
 }
 
 export function extractQrBase64(data: any): string | null {
-  return data?.qrcode ?? data?.base64 ?? data?.qr ?? data?.data?.qrcode ?? data?.data?.base64 ?? null;
+  const candidates = [
+    data?.qrcode,
+    data?.base64,
+    data?.qr,
+    data?.qrcode?.base64,
+    data?.qrcode?.qr,
+    data?.data?.qrcode,
+    data?.data?.base64,
+    data?.data?.qr,
+    data?.data?.qrcode?.base64,
+    data?.data?.qrcode?.qr,
+    data?.data?.instance?.qrcode,
+    data?.instance?.qrcode,
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate !== "string") continue;
+    const value = candidate.trim();
+    if (!value) continue;
+    if (value.startsWith("data:image/")) return value;
+    if (/^[A-Za-z0-9+/=\r\n]+$/.test(value) && value.length > 100) return value;
+  }
+
+  return null;
 }
