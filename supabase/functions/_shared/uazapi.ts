@@ -58,8 +58,16 @@ export async function uazApiFetch(config: UazApiConfig, options: FetchOptions): 
       mode: "header",
       headers: {
         "Content-Type": "application/json",
-        token: config.token,
-        ...(config.adminToken ? { admintoken: config.adminToken } : {}),
+        "Authorization": `Bearer ${config.token}`,
+      },
+      buildPath: (p) => p,
+    },
+    {
+      mode: "header",
+      headers: {
+        "Content-Type": "application/json",
+        "token": config.token,
+        ...(config.adminToken ? { "admintoken": config.adminToken } : {}),
       },
       buildPath: (p) => p,
     },
