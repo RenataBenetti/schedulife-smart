@@ -67,12 +67,10 @@ Deno.serve(async (req) => {
       });
     }
 
-    const encodedInstance = encodeURIComponent(qrInstance.instance_key);
     const sendRes = await uazApiFetch(config, {
       method: "POST",
       pathCandidates: [
-        `/message/sendText?instance=${encodedInstance}`,
-        `/v1/message/sendText?instance=${encodedInstance}`,
+        "/send/text",
       ],
       body: { number: fullPhone, text: message },
     });
