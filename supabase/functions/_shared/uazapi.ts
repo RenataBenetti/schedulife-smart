@@ -192,11 +192,13 @@ export function extractQrBase64(data: any): string | null {
     data?.qr,
     data?.qrcode?.base64,
     data?.qrcode?.qr,
+    data?.qrcode?.url,
     data?.data?.qrcode,
     data?.data?.base64,
     data?.data?.qr,
     data?.data?.qrcode?.base64,
     data?.data?.qrcode?.qr,
+    data?.data?.qrcode?.url,
     data?.data?.instance?.qrcode,
     data?.instance?.qrcode,
   ];
@@ -206,6 +208,7 @@ export function extractQrBase64(data: any): string | null {
     const value = candidate.trim();
     if (!value) continue;
     if (value.startsWith("data:image/")) return value;
+    if (/^https?:\/\//i.test(value)) return value;
     if (/^[A-Za-z0-9+/=\r\n]+$/.test(value) && value.length > 100) return value;
   }
 
