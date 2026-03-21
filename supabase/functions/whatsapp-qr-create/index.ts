@@ -123,7 +123,10 @@ Deno.serve(async (req) => {
       try {
         const qrRes = await uazApiFetch(config, {
           method: "GET",
-          pathCandidates: ["/instance/qr", "/v1/instance/qr"],
+          pathCandidates: [
+            `/instance/qr?instance=${encodeURIComponent(instanceName)}`,
+            `/v1/instance/qr?instance=${encodeURIComponent(instanceName)}`,
+          ],
         });
         console.log(`[whatsapp-qr-create] QR path=${qrRes.pathUsed} auth=${qrRes.authMode}`);
         qrBase64 = extractQrBase64(qrRes.data);
