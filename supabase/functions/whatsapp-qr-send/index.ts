@@ -73,9 +73,13 @@ Deno.serve(async (req) => {
     const phone = cleanPhone.startsWith("55") ? cleanPhone : `55${cleanPhone}`;
     const textMessage = message || "Agendix: conexão QR realizada com sucesso ✅";
 
+    const encodedInstance = encodeURIComponent(instance.instance_key);
     const sendRes = await uazApiFetch(config, {
       method: "POST",
-      pathCandidates: ["/message/sendText", "/v1/message/sendText", "/message/send-text"],
+      pathCandidates: [
+        `/message/sendText?instance=${encodedInstance}`,
+        `/v1/message/sendText?instance=${encodedInstance}`,
+      ],
       body: { number: phone, text: textMessage },
     });
 

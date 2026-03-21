@@ -98,9 +98,13 @@ Deno.serve(async (req) => {
         const cleanPhone = msg.to_phone.replace(/\D/g, "");
         const phone = cleanPhone.startsWith("55") ? cleanPhone : `55${cleanPhone}`;
 
+        const encodedInstance = encodeURIComponent(msg.instance_name);
         await uazApiFetch(config, {
           method: "POST",
-          pathCandidates: ["/message/sendText", "/v1/message/sendText", "/message/send-text"],
+          pathCandidates: [
+            `/message/sendText?instance=${encodedInstance}`,
+            `/v1/message/sendText?instance=${encodedInstance}`,
+          ],
           body: { number: phone, text: fullText },
           timeoutMs: 30000,
         });
