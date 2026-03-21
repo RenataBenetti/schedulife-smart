@@ -73,9 +73,13 @@ Deno.serve(async (req) => {
       });
     }
 
+    const encodedInstance = encodeURIComponent(instance.instance_key);
     const statusRes = await uazApiFetch(config, {
       method: "GET",
-      pathCandidates: ["/instance/status", "/v1/instance/status"],
+      pathCandidates: [
+        `/instance/status?instance=${encodedInstance}`,
+        `/v1/instance/status?instance=${encodedInstance}`,
+      ],
     });
 
     const state = extractStatus(statusRes.data);

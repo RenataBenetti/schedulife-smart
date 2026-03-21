@@ -16,13 +16,13 @@ type UazApiResult = {
   status: number;
   data: any;
   pathUsed: string;
-  authMode: "header" | "query";
+  authMode: "bearer" | "token_header" | "query";
 };
 
 export function getUazApiConfig(): UazApiConfig | null {
   const baseUrl = Deno.env.get("UAZAPI_BASE_URL")?.replace(/\/$/, "");
-  const token = Deno.env.get("UAZAPI_INSTANCE_TOKEN");
-  const adminToken = Deno.env.get("UAZAPI_ADMIN_TOKEN") || undefined;
+  const token = Deno.env.get("UAZAPI_INSTANCE_TOKEN")?.trim();
+  const adminToken = Deno.env.get("UAZAPI_ADMIN_TOKEN")?.trim() || undefined;
 
   if (!baseUrl || !token) return null;
   return { baseUrl, token, adminToken };
@@ -33,6 +33,12 @@ function withQuery(path: string, config: UazApiConfig): string {
   params.set("token", config.token);
   if (config.adminToken) params.set("admintoken", config.adminToken);
   return path.includes("?") ? `${path}&${params.toString()}` : `${path}?${params.toString()}`;
+}
+
+function redactSecretsInPath(path: string): string {
+  return path
+    .replace(/([?&]token=)[^&]+/gi, "$1***")
+    .replace(/([?&]admintoken=)[^&]+/gi, "$1***");
 }
 
 function parseMaybeJson(raw: string): any {
@@ -50,24 +56,24 @@ export async function uazApiFetch(config: UazApiConfig, options: FetchOptions): 
   const attempts: Array<{ path: string; auth: string; status: number; response: any }> = [];
 
   const authVariants: Array<{
-    mode: "header" | "query";
+    mode: "bearer" | "token_header" | "query";
     headers: Record<string, string>;
     buildPath: (p: string) => string;
   }> = [
     {
-      mode: "header",
+      mode: "bearer",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${config.token}`,
+        Authorization: `Bearer ${config.token}`,
       },
       buildPath: (p) => p,
     },
     {
-      mode: "header",
+      mode: "token_header",
       headers: {
         "Content-Type": "application/json",
-        "token": config.token,
-        ...(config.adminToken ? { "admintoken": config.adminToken } : {}),
+        token: config.token,
+        ...(config.adminToken ? { admintoken: config.adminToken } : {}),
       },
       buildPath: (p) => p,
     },
@@ -83,6 +89,7 @@ export async function uazApiFetch(config: UazApiConfig, options: FetchOptions): 
       const signal = AbortSignal.timeout(timeoutMs);
       const finalPath = auth.buildPath(path);
       const url = `${config.baseUrl}${finalPath}`;
+      const safePath = redactSecretsInPath(finalPath);
 
       try {
         const res = await fetch(url, {
@@ -94,25 +101,24 @@ export async function uazApiFetch(config: UazApiConfig, options: FetchOptions): 
 
         const text = await res.text();
         const data = parseMaybeJson(text);
-        attempts.push({ path: finalPath, auth: auth.mode, status: res.status, response: data });
+        attempts.push({ path: safePath, auth: auth.mode, status: res.status, response: data });
 
         if (res.ok) {
           return {
             ok: true,
             status: res.status,
             data,
-            pathUsed: finalPath,
+            pathUsed: safePath,
             authMode: auth.mode,
           };
         }
 
-        // Continue trying alternate path/auth on auth and route errors
         if ([401, 403, 404, 405].includes(res.status)) {
           continue;
         }
       } catch (err: any) {
         attempts.push({
-          path: finalPath,
+          path: safePath,
           auth: auth.mode,
           status: 0,
           response: { error: err?.message ?? "network_error" },
