@@ -1,34 +1,55 @@
 
 
-## Migração Evolution API → UazAPI
+## Diagnóstico
 
-### Análise
+A mensagem falhou com erro **405 Method Not Allowed** em todos os endpoints de envio. A causa raiz é que a UazAPI exige o parâmetro `?instance=<nome>` na URL de envio de mensagem (assim como exige para conexão e status), mas as funções de envio não passam esse parâmetro.
 
-A UazAPI tem endpoints e formatos de payload diferentes da Evolution API. A migração exige atualizar **6 Edge Functions** que fazem chamadas HTTP diretas à API.
+O `whatsapp-qr-create` já faz isso corretamente para conexão:
+```
+/instance/connect?instance=agendix-45bb3ba3
+```
 
-### O que muda
+Mas o worker e as funções de envio usam apenas:
+```
+/message/sendText  (sem ?instance=...)
+```
 
-1. **Secrets**: Substituir `EVOLUTION_API_URL` e `EVOLUTION_API_KEY` pelas credenciais da UazAPI
-2. **Criação de instância** (`whatsapp-qr-create`): Adaptar endpoint de criação + formato de resposta do QR code
-3. **Status de conexão** (`whatsapp-qr-status`): Adaptar endpoint `connectionState` para o equivalente da UazAPI
-4. **Webhook** (`whatsapp-qr-webhook`): Ajustar parsing dos eventos (`connection.update`, `qrcode.updated`) para o formato UazAPI
-5. **Envio de mensagens** (`send-whatsapp-message`, `whatsapp-qr-send`, `whatsapp-worker`): Adaptar endpoint `/message/sendText/{instance}` e payload `{ number, text }` para o formato UazAPI
-6. **Banco de dados**: Nenhuma mudança — as tabelas `whatsapp_instances_qr`, `whatsapp_outbox`, `message_logs` permanecem iguais
+## Plano de Correção
 
-### Pré-requisitos
+### 1. Corrigir `whatsapp-worker` (envio automático)
+- Usar o `instance_name` que já existe em cada mensagem da fila (`msg.instance_name`)
+- Adicionar `?instance=<instance_name>` nos pathCandidates do sendText
 
-- URL base da UazAPI e token/chave de API
-- Documentação dos endpoints da UazAPI (criação de instância, envio, status, webhook)
+### 2. Corrigir `send-whatsapp-message` (envio manual do dashboard)
+- Já busca `qrInstance.instance_key` do banco
+- Adicionar `?instance=<instance_key>` nos pathCandidates
 
-### Riscos
+### 3. Corrigir `whatsapp-qr-send` (teste de conexão)
+- Já busca `instance.instance_key` do banco
+- Adicionar `?instance=<instance_key>` nos pathCandidates
 
-- UazAPI é WhatsApp não-oficial (mesmo risco da Evolution API)
-- Período de transição pode causar interrupção no envio de mensagens
-- Formato de webhook pode variar entre versões
+### 4. Reprocessar mensagem falhada
+- Atualizar a mensagem `ee119410` na outbox de `failed` para `queued` para que o worker tente novamente
 
-### Recomendação
+### 5. Deploy e teste
+- Redeploiar as 3 funções corrigidas
+- Verificar nos logs se a mensagem é enviada com sucesso
 
-A migração é viável e de médio esforço (~6 arquivos). Se você já tem acesso à UazAPI e sua documentação, posso adaptar todas as funções. Precisaria que você:
-1. Forneça a **URL base** e **chave de API** da UazAPI
-2. Confirme os endpoints principais (envio de texto, criação de instância, status)
+### Detalhes Técnicos
+
+Exemplo da correção no worker (linha 101-106):
+```typescript
+const encodedInstance = encodeURIComponent(msg.instance_name);
+await uazApiFetch(config, {
+  method: "POST",
+  pathCandidates: [
+    `/message/sendText?instance=${encodedInstance}`,
+    `/v1/message/sendText?instance=${encodedInstance}`,
+  ],
+  body: { number: phone, text: fullText },
+  timeoutMs: 30000,
+});
+```
+
+O mesmo padrão será aplicado às outras duas funções.
 
