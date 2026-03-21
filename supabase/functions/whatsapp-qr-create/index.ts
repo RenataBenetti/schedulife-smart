@@ -81,10 +81,13 @@ Deno.serve(async (req) => {
     // Check current status (best-effort)
     let isConnected = false;
     try {
-      const statusRes = await uazApiFetch(config, {
-        method: "GET",
-        pathCandidates: ["/instance/status", "/v1/instance/status"],
-      });
+        const statusRes = await uazApiFetch(config, {
+          method: "GET",
+          pathCandidates: [
+            `/instance/status?instance=${encodeURIComponent(instanceName)}`,
+            `/v1/instance/status?instance=${encodeURIComponent(instanceName)}`,
+          ],
+        });
       const state = extractStatus(statusRes.data);
       isConnected = isConnectedStatus(state);
       console.log(`[whatsapp-qr-create] Status path=${statusRes.pathUsed} auth=${statusRes.authMode} state=${state}`);
