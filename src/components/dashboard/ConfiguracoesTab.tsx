@@ -52,10 +52,10 @@ const ConfiguracoesTab = () => {
   const [activeSection, setActiveSection] = useState("perfil");
   const [gcalDialogOpen, setGcalDialogOpen] = useState(false);
   const [savingGcal, setSavingGcal] = useState(false);
-  const { data: notifPrefs } = useNotificationPreferences(workspace?.id);
-  const updateNotifPrefs = useUpdateNotificationPreferences(workspace?.id);
   const { user } = useAuth();
   const { data: workspace, isLoading: wsLoading } = useWorkspace();
+  const { data: notifPrefs } = useNotificationPreferences(workspace?.id);
+  const updateNotifPrefs = useUpdateNotificationPreferences(workspace?.id);
   const { data: profile } = useProfile(user?.id);
   const { data: subscription } = useSubscription(workspace?.id);
   const { data: gcalCfg, refetch: refetchGcal } = useGoogleCalendarConfig(workspace?.id);
