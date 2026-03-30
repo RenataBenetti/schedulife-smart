@@ -30,6 +30,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
+import { useNotificationPreferences, useUpdateNotificationPreferences } from "@/hooks/use-notification-preferences";
 
 const sections = [
 { id: "perfil", label: "Perfil", icon: User },
@@ -51,9 +52,8 @@ const ConfiguracoesTab = () => {
   const [activeSection, setActiveSection] = useState("perfil");
   const [gcalDialogOpen, setGcalDialogOpen] = useState(false);
   const [savingGcal, setSavingGcal] = useState(false);
-  const [notifEmail, setNotifEmail] = useState(false);
-  const [notifPayment, setNotifPayment] = useState(false);
-  const [notifSummary, setNotifSummary] = useState(false);
+  const { data: notifPrefs } = useNotificationPreferences(workspace?.id);
+  const updateNotifPrefs = useUpdateNotificationPreferences(workspace?.id);
   const { user } = useAuth();
   const { data: workspace, isLoading: wsLoading } = useWorkspace();
   const { data: profile } = useProfile(user?.id);
@@ -321,21 +321,21 @@ const ConfiguracoesTab = () => {
                   <p className="text-sm font-medium text-foreground">Email ao receber confirmação</p>
                   <p className="text-xs text-muted-foreground">Receba um email quando o cliente confirmar a sessão.</p>
                 </div>
-                <Switch checked={notifEmail} onCheckedChange={setNotifEmail} />
+                <Switch checked={notifPrefs?.notify_email_confirmation ?? false} onCheckedChange={(v) => updateNotifPrefs.mutate({ notify_email_confirmation: v })} />
               </div>
               <div className="flex items-center justify-between gap-4">
                 <div>
                   <p className="text-sm font-medium text-foreground">Alerta de pagamento pendente</p>
                   <p className="text-xs text-muted-foreground">Notificação quando um pagamento estiver pendente por mais de 3 dias.</p>
                 </div>
-                <Switch checked={notifPayment} onCheckedChange={setNotifPayment} />
+                <Switch checked={notifPrefs?.notify_payment_pending ?? false} onCheckedChange={(v) => updateNotifPrefs.mutate({ notify_payment_pending: v })} />
               </div>
               <div className="flex items-center justify-between gap-4">
                 <div>
-                  <p className="text-sm font-medium text-foreground">Resumo diário</p>
-                  <p className="text-xs text-muted-foreground">Receba um resumo das sessões do dia pela manhã.</p>
+                  <p className="text-sm font-medium text-foreground">Resumo diário via WhatsApp</p>
+                  <p className="text-xs text-muted-foreground">Receba um resumo das sessões e pagamentos do dia pela manhã no WhatsApp.</p>
                 </div>
-                <Switch checked={notifSummary} onCheckedChange={setNotifSummary} />
+                <Switch checked={notifPrefs?.notify_daily_summary ?? false} onCheckedChange={(v) => updateNotifPrefs.mutate({ notify_daily_summary: v })} />
               </div>
             </div>
           </div>

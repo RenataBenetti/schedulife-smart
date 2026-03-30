@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useWorkspace } from "@/hooks/use-workspace";
+import { NotificationsPopover } from "@/components/dashboard/NotificationsPopover";
 import { useAppointments, useClients, usePaymentLinks, useMessageTemplates } from "@/hooks/use-data";
 import { format, isToday } from "date-fns";
 import ClientesTab from "@/components/dashboard/ClientesTab";
@@ -162,9 +163,7 @@ const Dashboard = () => {
             </div>
           </div>
           <div className="flex items-center gap-2 md:gap-3">
-            <button className="h-8 w-8 md:h-9 md:w-9 rounded-lg border border-border flex items-center justify-center text-muted-foreground hover:bg-muted">
-              <Bell className="h-4 w-4" />
-            </button>
+            <NotificationsPopover workspaceId={workspace?.id} onNavigate={setActiveTab} />
             <div className="h-8 w-8 md:h-9 md:w-9 rounded-full gradient-primary flex items-center justify-center text-primary-foreground text-sm font-bold">
               {userInitial}
             </div>

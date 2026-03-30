@@ -226,6 +226,15 @@ Deno.serve(async (req) => {
             rule_id: rule.id,
           });
 
+          // 9. Insert dashboard notification
+          await supabase.from("notifications").insert({
+            workspace_id,
+            title: `Lembrete enviado para ${client.full_name}`,
+            body: `Mensagem "${template.name}" enviada para ${client.phone}`,
+            type: "appointment_reminder",
+            related_id: apt.id,
+          });
+
           console.log(`[process-message-rules] Queued message for ${client.full_name} (${client.phone})`);
           totalQueued++;
         }
