@@ -2,41 +2,80 @@
 
 ## Problema
 
-O Google exige três coisas para verificação:
-
-1. A página inicial (`agendix.soriamarketing.com.br`) precisa ter um link visível para a Política de Privacidade
-2. A Política de Privacidade precisa estar em HTML básico acessível (não uma SPA React)
-3. A Política de Privacidade precisa estar no mesmo domínio qualificado (`agendix.soriamarketing.com.br`)
-
-Atualmente, o footer da landing page aponta para `/privacidade.html` (arquivo estático que já existe em `public/`), mas os links internos dentro do `privacidade.html` apontam para `https://agendix.soriamarketing.com.br` — o que está correto. O problema é que o footer também precisa apontar para a versão `.html` no mesmo domínio, e a Política de Privacidade precisa ser servida como HTML puro (não via React router).
+As notificações no sistema são apenas visuais (switches decorativos) — não persistem no banco e não disparam nenhuma ação real. O ícone de sino no dashboard não faz nada. Não existe resumo diário via WhatsApp.
 
 ## Plano
 
-### 1. Corrigir links do Footer da Landing Page
-- Alterar o link de Privacidade de `/privacidade.html` para `/privacidade.html` (já está correto no código, mas confirmar que funciona como arquivo estático)
-- Alterar o link de Termos de `/termos.html` para `/termos.html` (já correto)
-- O arquivo `public/privacidade.html` já existe e será servido diretamente pelo Vite/servidor como HTML estático — isso atende ao requisito de "formato básico da Web"
+### 1. Criar tabela `notification_preferences` para persistir preferências
 
-### 2. Adicionar link de Privacidade visível na Navbar da Landing Page
-- Adicionar um link "Política de Privacidade" no footer da landing page com mais destaque, garantindo que o Google crawler encontre facilmente
-- O link deve apontar para `/privacidade.html`
+Colunas: `workspace_id`, `notify_email_confirmation` (bool), `notify_payment_pending` (bool), `notify_daily_summary` (bool). RLS por workspace member. Os switches em Configurações passam a ler/gravar nessa tabela.
 
-### 3. Atualizar URLs internas no `privacidade.html`
-- Garantir que os links de "Voltar ao início" apontem para `https://agendix.soriamarketing.com.br`
-- Já estão corretos no arquivo atual
+### 2. Criar tabela `notifications` para alertas no dashboard
 
-### 4. Publicar as mudanças
-- Após publicar, a Política de Privacidade estará acessível em `https://agendix.soriamarketing.com.br/privacidade.html` como HTML puro
-- O footer da página inicial terá o link visível
+Colunas: `id`, `workspace_id`, `title`, `body`, `type` (appointment_reminder, payment_pending, daily_summary), `read` (bool), `created_at`, `related_id` (uuid opcional). RLS por workspace member.
+
+### 3. Painel de notificações no Dashboard (sino)
+
+- Ao clicar no ícone de sino, abre um popover/dropdown listando as notificações não lidas e recentes
+- Badge com contador de não lidas no sino
+- Botão "Marcar todas como lidas"
+- Notificações clicáveis que direcionam para a aba relevante (agendamentos, pagamentos)
+
+### 4. Edge Function `daily-summary` — resumo diário via WhatsApp
+
+Nova Edge Function executada via pg_cron uma vez por dia (ex: 7h horário de Brasília). Para cada workspace com WhatsApp conectado e `notify_daily_summary = true`:
+
+- Busca agendamentos do dia (status scheduled/confirmed)
+- Busca pagamentos pendentes
+- Monta texto resumo:
+  ```
+  📋 Resumo do dia - 30/03/2026
+
+  📅 Sessões de hoje (3):
+  • 09:00 - Maria Silva
+  • 11:00 - João Santos
+  • 14:30 - Ana Costa
+
+  💰 Pagamentos pendentes (2):
+  • Maria Silva - R$ 150,00
+  • Pedro Lima - R$ 200,00
+
+  Bom trabalho! 💪
+  ```
+- Envia para o número do próprio profissional (phone do workspace owner) via UazAPI
+- Também insere uma notificação na tabela `notifications` para aparecer no dashboard
+
+### 5. Geração de notificações automáticas
+
+Adicionar lógica na Edge Function `process-message-rules` (que já roda a cada minuto) para, além de enfileirar mensagens WhatsApp, inserir registros na tabela `notifications`:
+
+- Quando uma sessão está próxima (ex: 1h antes) → notificação no dashboard
+- Quando um pagamento está pendente há mais de 3 dias → notificação no dashboard
+
+### 6. Persistir preferências nos switches de Configurações
+
+Os switches de Notificações passam a carregar e salvar na tabela `notification_preferences`, usando um hook `use-notification-preferences`.
+
+---
 
 ## Detalhes Técnicos
 
-**Arquivo:** `src/components/landing/FooterSection.tsx`
-- Manter link `/privacidade.html` (arquivo estático, não rota React)
-- Garantir que o link é claro: "Política de Privacidade" em vez de apenas "Privacidade"
+**Migrações (2 tabelas):**
+- `notification_preferences` — 1 row por workspace, 3 booleans
+- `notifications` — append-only, com RLS de workspace member, UPDATE para marcar como lida
 
-**Arquivo:** `public/privacidade.html`  
-- Já existe e está completo — nenhuma alteração necessária
+**Arquivos modificados:**
+- `src/pages/Dashboard.tsx` — sino com popover e badge
+- `src/components/dashboard/ConfiguracoesTab.tsx` — persistir switches
+- `src/components/dashboard/NotificationsPopover.tsx` — novo componente
+- `src/hooks/use-notifications.ts` — novo hook (fetch + mark read)
+- `src/hooks/use-notification-preferences.ts` — novo hook
+- `supabase/functions/daily-summary/index.ts` — nova Edge Function
+- `supabase/functions/process-message-rules/index.ts` — adicionar insert em `notifications`
 
-**Nota importante:** O domínio `agendix.soriamarketing.com.br` precisa estar configurado como domínio customizado apontando para este projeto Lovable para que `/privacidade.html` seja acessível nesse domínio. Se ainda não estiver configurado, será necessário fazer isso nas configurações do projeto.
+**pg_cron para resumo diário:**
+```sql
+SELECT cron.schedule('daily-summary', '0 10 * * *', ...);
+```
+(10:00 UTC = 7:00 BRT)
 
