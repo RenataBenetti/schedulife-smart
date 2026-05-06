@@ -139,6 +139,26 @@ Deno.serve(async (req) => {
           })
           .eq("id", msg.id);
         failed++;
+
+        // Surface 401/auth errors as a dashboard notification (deduped per day)
+        const errStr = String(err.message ?? "");
+        if (errStr.includes("401") || errStr.toLowerCase().includes("token")) {
+          const today = new Date(); today.setHours(0, 0, 0, 0);
+          const { count: existing } = await supabaseAdmin
+            .from("notifications")
+            .select("id", { count: "exact", head: true })
+            .eq("workspace_id", msg.workspace_id)
+            .eq("type", "system_error")
+            .gte("created_at", today.toISOString());
+          if ((existing ?? 0) === 0) {
+            await supabaseAdmin.from("notifications").insert({
+              workspace_id: msg.workspace_id,
+              title: "WhatsApp desconectado",
+              body: "Falha ao enviar mensagens (token inválido). Reconecte em Configurações → Integrações → WhatsApp.",
+              type: "system_error",
+            });
+          }
+        }
       }
     }
 

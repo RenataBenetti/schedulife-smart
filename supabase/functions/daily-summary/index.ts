@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getUazApiConfigForToken, uazApiFetch } from "../_shared/uazapi.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -19,11 +20,7 @@ Deno.serve(async (req) => {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
 
-  const UAZAPI_BASE_URL = Deno.env.get("UAZAPI_BASE_URL");
-  const UAZAPI_INSTANCE_TOKEN = Deno.env.get("UAZAPI_INSTANCE_TOKEN");
-
   try {
-    // Get workspaces with daily summary enabled
     const { data: prefs } = await supabase
       .from("notification_preferences")
       .select("workspace_id")
@@ -36,52 +33,28 @@ Deno.serve(async (req) => {
     }
 
     const today = new Date();
-    const dayStart = new Date(today);
-    dayStart.setHours(0, 0, 0, 0);
-    const dayEnd = new Date(today);
-    dayEnd.setHours(23, 59, 59, 999);
-
+    const dayStart = new Date(today); dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(today); dayEnd.setHours(23, 59, 59, 999);
     const dateStr = today.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
+
     let sent = 0;
+    const errors: any[] = [];
 
     for (const pref of prefs) {
       const wsId = pref.workspace_id;
 
-      // Check WhatsApp connection
       const { data: qrInst } = await supabase
         .from("whatsapp_instances_qr")
-        .select("instance_key, status")
+        .select("instance_token, phone_number, status")
         .eq("workspace_id", wsId)
         .eq("status", "connected")
         .maybeSingle();
 
-      if (!qrInst?.instance_key) continue;
-
-      // Get workspace owner phone
-      const { data: ws } = await supabase
-        .from("workspaces")
-        .select("name, owner_id")
-        .eq("id", wsId)
-        .maybeSingle();
-      if (!ws) continue;
-
-      // Get owner profile to find their phone (from workspace_members -> profiles)
-      // We need the owner's phone. Check if there's a client record or use workspace name
-      // For now, get the owner's phone from the whatsapp instance phone_number
-      const { data: qrFull } = await supabase
-        .from("whatsapp_instances_qr")
-        .select("phone_number")
-        .eq("workspace_id", wsId)
-        .eq("status", "connected")
-        .maybeSingle();
-
-      const ownerPhone = qrFull?.phone_number;
-      if (!ownerPhone) {
-        console.log(`[daily-summary] No owner phone for workspace ${wsId}`);
+      if (!qrInst?.instance_token || !qrInst?.phone_number) {
+        console.log(`[daily-summary] Workspace ${wsId} sem instância conectada/token/telefone`);
         continue;
       }
 
-      // Today's appointments
       const { data: appointments } = await supabase
         .from("appointments")
         .select("starts_at, clients(full_name)")
@@ -91,32 +64,27 @@ Deno.serve(async (req) => {
         .in("status", ["scheduled", "confirmed"])
         .order("starts_at", { ascending: true });
 
-      // Pending payments
       const { data: payments } = await supabase
         .from("payment_links")
         .select("amount_cents, clients(full_name)")
         .eq("workspace_id", wsId)
         .eq("paid", false);
 
-      // Build message
       const aptCount = appointments?.length ?? 0;
       const payCount = payments?.length ?? 0;
 
       let msg = `📋 *Resumo do dia - ${dateStr}*\n\n`;
-
       if (aptCount > 0) {
         msg += `📅 *Sessões de hoje (${aptCount}):*\n`;
         for (const apt of appointments!) {
-          const time = new Date(apt.starts_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+          const time = new Date(apt.starts_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "America/Sao_Paulo" });
           const name = (apt.clients as any)?.full_name ?? "—";
           msg += `• ${time} - ${name}\n`;
         }
       } else {
         msg += `📅 *Nenhuma sessão agendada para hoje*\n`;
       }
-
       msg += `\n`;
-
       if (payCount > 0) {
         const total = payments!.reduce((s, p) => s + p.amount_cents, 0);
         msg += `💰 *Pagamentos pendentes (${payCount}):*\n`;
@@ -128,52 +96,46 @@ Deno.serve(async (req) => {
       } else {
         msg += `💰 *Nenhum pagamento pendente* ✅\n`;
       }
-
       msg += `\nBom trabalho! 💪`;
 
-      // Send via UazAPI
-      if (UAZAPI_BASE_URL && UAZAPI_INSTANCE_TOKEN) {
-        const encodedInstance = encodeURIComponent(qrInst.instance_key);
-        let phone = ownerPhone.replace(/\D/g, "");
-        if (!phone.startsWith("55")) phone = "55" + phone;
+      let phone = qrInst.phone_number.replace(/\D/g, "");
+      if (!phone.startsWith("55")) phone = "55" + phone;
 
-        const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), 30000);
+      const config = getUazApiConfigForToken(qrInst.instance_token);
+      let sendOk = false;
+      let sendErr: string | null = null;
 
+      if (config) {
         try {
-          const resp = await fetch(
-            `${UAZAPI_BASE_URL}/message/sendText?instance=${encodedInstance}`,
-            {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${UAZAPI_INSTANCE_TOKEN}`,
-              },
-              body: JSON.stringify({ number: phone, text: msg }),
-              signal: controller.signal,
-            }
-          );
-          clearTimeout(timer);
-          const body = await resp.text();
-          console.log(`[daily-summary] Sent to ${phone}: ${resp.status} ${body}`);
+          await uazApiFetch(config, {
+            method: "POST",
+            authType: "instance",
+            pathCandidates: ["/send/text"],
+            body: { number: phone, text: msg },
+            timeoutMs: 30000,
+          });
+          sendOk = true;
+          sent++;
         } catch (e: any) {
-          clearTimeout(timer);
-          console.error(`[daily-summary] Send error:`, e.message);
+          sendErr = e?.message ?? String(e);
+          console.error(`[daily-summary] Send error ws=${wsId}:`, sendErr);
+          errors.push({ workspace_id: wsId, error: sendErr });
         }
+      } else {
+        sendErr = "UAZAPI base url não configurado";
       }
 
-      // Insert dashboard notification
       await supabase.from("notifications").insert({
         workspace_id: wsId,
-        title: `Resumo do dia - ${dateStr}`,
-        body: `${aptCount} sessões hoje, ${payCount} pagamentos pendentes`,
-        type: "daily_summary",
+        title: sendOk ? `Resumo do dia - ${dateStr}` : `Falha ao enviar resumo do dia`,
+        body: sendOk
+          ? `${aptCount} sessões hoje, ${payCount} pagamentos pendentes`
+          : `Não foi possível enviar pelo WhatsApp: ${sendErr?.slice(0, 200) ?? "erro desconhecido"}. Verifique a conexão em Configurações → Integrações.`,
+        type: sendOk ? "daily_summary" : "system_error",
       });
-
-      sent++;
     }
 
-    return new Response(JSON.stringify({ success: true, sent }), {
+    return new Response(JSON.stringify({ success: true, sent, errors }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err: any) {
