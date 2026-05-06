@@ -68,7 +68,8 @@ Deno.serve(async (req) => {
 
     const statusRes = await uazApiFetch(config, {
       method: "GET",
-      pathCandidates: ["/instance/status", "/v1/instance/status"],
+      authType: "instance",
+      pathCandidates: ["/instance/status"],
     });
 
     const state = extractStatus(statusRes.data);

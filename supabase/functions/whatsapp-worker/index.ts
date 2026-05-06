@@ -111,6 +111,7 @@ Deno.serve(async (req) => {
 
         await uazApiFetch(config, {
           method: "POST",
+          authType: "instance",
           pathCandidates: ["/send/text"],
           body: { number: phone, text: fullText },
           timeoutMs: 30000,
