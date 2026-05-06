@@ -1,81 +1,27 @@
+## Atualizar token da UazAPI
 
+O erro 401 "Invalid token" vem da UazAPI rejeitando o valor atual do secret `UAZAPI_INSTANCE_TOKEN`. Não há nada a corrigir no código — todas as três variantes de autenticação (Bearer, header `token`, query param) já são tentadas pela camada `_shared/uazapi.ts` e todas retornam 401, o que confirma que o token armazenado está expirado ou inválido.
 
-## Problema
+### Passos
 
-As notificações no sistema são apenas visuais (switches decorativos) — não persistem no banco e não disparam nenhuma ação real. O ícone de sino no dashboard não faz nada. Não existe resumo diário via WhatsApp.
+1. **Você gera um novo token no painel da UazAPI**
+   - Acesse o painel da UazAPI onde sua instância está hospedada
+   - Vá em configurações da instância → tokens / API keys
+   - Gere (ou copie) um novo token de instância válido
+   - Se houver também um `admintoken`, anote — mas o principal é o `UAZAPI_INSTANCE_TOKEN`
 
-## Plano
+2. **Eu solicito a atualização do secret**
+   - Após sua confirmação, vou disparar o pedido para atualizar `UAZAPI_INSTANCE_TOKEN` no projeto
+   - Você cola o novo valor na caixa segura — eu não vejo o conteúdo
+   - Opcionalmente, atualizamos também `UAZAPI_BASE_URL` se o servidor mudou, e `UAZAPI_ADMIN_TOKEN` se aplicável
 
-### 1. Criar tabela `notification_preferences` para persistir preferências
+3. **Validação**
+   - Após salvar, testo a função `whatsapp-qr-create` via curl para o seu workspace
+   - Confirmo nos logs que a resposta deixa de ser 401 e o QR é gerado
+   - Se o workspace antigo (`agendix-45bb3ba3`) estava causando ruído, podemos remover a linha órfã da tabela `whatsapp_instances_qr`
 
-Colunas: `workspace_id`, `notify_email_confirmation` (bool), `notify_payment_pending` (bool), `notify_daily_summary` (bool). RLS por workspace member. Os switches em Configurações passam a ler/gravar nessa tabela.
+### Observações
 
-### 2. Criar tabela `notifications` para alertas no dashboard
-
-Colunas: `id`, `workspace_id`, `title`, `body`, `type` (appointment_reminder, payment_pending, daily_summary), `read` (bool), `created_at`, `related_id` (uuid opcional). RLS por workspace member.
-
-### 3. Painel de notificações no Dashboard (sino)
-
-- Ao clicar no ícone de sino, abre um popover/dropdown listando as notificações não lidas e recentes
-- Badge com contador de não lidas no sino
-- Botão "Marcar todas como lidas"
-- Notificações clicáveis que direcionam para a aba relevante (agendamentos, pagamentos)
-
-### 4. Edge Function `daily-summary` — resumo diário via WhatsApp
-
-Nova Edge Function executada via pg_cron uma vez por dia (ex: 7h horário de Brasília). Para cada workspace com WhatsApp conectado e `notify_daily_summary = true`:
-
-- Busca agendamentos do dia (status scheduled/confirmed)
-- Busca pagamentos pendentes
-- Monta texto resumo:
-  ```
-  📋 Resumo do dia - 30/03/2026
-
-  📅 Sessões de hoje (3):
-  • 09:00 - Maria Silva
-  • 11:00 - João Santos
-  • 14:30 - Ana Costa
-
-  💰 Pagamentos pendentes (2):
-  • Maria Silva - R$ 150,00
-  • Pedro Lima - R$ 200,00
-
-  Bom trabalho! 💪
-  ```
-- Envia para o número do próprio profissional (phone do workspace owner) via UazAPI
-- Também insere uma notificação na tabela `notifications` para aparecer no dashboard
-
-### 5. Geração de notificações automáticas
-
-Adicionar lógica na Edge Function `process-message-rules` (que já roda a cada minuto) para, além de enfileirar mensagens WhatsApp, inserir registros na tabela `notifications`:
-
-- Quando uma sessão está próxima (ex: 1h antes) → notificação no dashboard
-- Quando um pagamento está pendente há mais de 3 dias → notificação no dashboard
-
-### 6. Persistir preferências nos switches de Configurações
-
-Os switches de Notificações passam a carregar e salvar na tabela `notification_preferences`, usando um hook `use-notification-preferences`.
-
----
-
-## Detalhes Técnicos
-
-**Migrações (2 tabelas):**
-- `notification_preferences` — 1 row por workspace, 3 booleans
-- `notifications` — append-only, com RLS de workspace member, UPDATE para marcar como lida
-
-**Arquivos modificados:**
-- `src/pages/Dashboard.tsx` — sino com popover e badge
-- `src/components/dashboard/ConfiguracoesTab.tsx` — persistir switches
-- `src/components/dashboard/NotificationsPopover.tsx` — novo componente
-- `src/hooks/use-notifications.ts` — novo hook (fetch + mark read)
-- `src/hooks/use-notification-preferences.ts` — novo hook
-- `supabase/functions/daily-summary/index.ts` — nova Edge Function
-- `supabase/functions/process-message-rules/index.ts` — adicionar insert em `notifications`
-
-**pg_cron para resumo diário:**
-```sql
-SELECT cron.schedule('daily-summary', '0 10 * * *', ...);
-```
-(10:00 UTC = 7:00 BRT)
-
+- Nenhum arquivo do código será alterado — só o secret
+- O workspace principal (`0c91acd4`) continua funcionando normalmente durante a troca; o novo token passa a valer instantaneamente para as próximas chamadas
+- Se preferir, posso já deixar preparado um teste rápido (`whatsapp-qr-status`) para rodar logo após a atualização
