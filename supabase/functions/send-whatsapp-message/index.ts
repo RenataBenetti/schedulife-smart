@@ -51,8 +51,6 @@ Deno.serve(async (req) => {
     const cleanPhone = phone.replace(/\D/g, "");
     const fullPhone = cleanPhone.startsWith("55") ? cleanPhone : `55${cleanPhone}`;
 
-    const config = getUazApiConfig();
-
     const { data: qrInstance } = await supabase
       .from("whatsapp_instances_qr")
       .select("*")
@@ -60,18 +58,24 @@ Deno.serve(async (req) => {
       .eq("status", "connected")
       .maybeSingle();
 
-    if (!config || !qrInstance || !qrInstance.instance_key) {
+    if (!qrInstance || !qrInstance.instance_key || !qrInstance.instance_token) {
       return new Response(JSON.stringify({ error: "WhatsApp não configurado para este workspace. Conecte via QR Code em Configurações → Integrações." }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
+    const config = getUazApiConfigForToken(qrInstance.instance_token);
+    if (!config) {
+      return new Response(JSON.stringify({ error: "Servidor de WhatsApp não configurado." }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const sendRes = await uazApiFetch(config, {
       method: "POST",
-      pathCandidates: [
-        "/send/text",
-      ],
+      pathCandidates: ["/send/text"],
       body: { number: fullPhone, text: message },
     });
 
