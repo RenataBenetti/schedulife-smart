@@ -103,11 +103,15 @@ Deno.serve(async (req) => {
         const cleanPhone = msg.to_phone.replace(/\D/g, "");
         const phone = cleanPhone.startsWith("55") ? cleanPhone : `55${cleanPhone}`;
 
+        const instanceToken = await getInstanceTokenFor(msg.workspace_id);
+        const config = instanceToken ? getUazApiConfigForToken(instanceToken) : null;
+        if (!config) {
+          throw new Error("WhatsApp não conectado para este workspace (token de instância ausente).");
+        }
+
         await uazApiFetch(config, {
           method: "POST",
-          pathCandidates: [
-            "/send/text",
-          ],
+          pathCandidates: ["/send/text"],
           body: { number: phone, text: fullText },
           timeoutMs: 30000,
         });
