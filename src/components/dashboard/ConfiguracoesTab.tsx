@@ -380,27 +380,7 @@ const ConfiguracoesTab = () => {
                 )}
               </div>
 
-              {/* Google Calendar */}
-              <div className="rounded-xl border border-border bg-card p-5 shadow-soft flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center">
-                    <Calendar className="h-5 w-5 text-muted-foreground" />
-                  </div>
-                  <div>
-                    <p className="font-medium text-foreground">Google Calendar</p>
-                    <p className={`text-xs ${(gcalCfg?.connected && gcalCfg?.access_token) ? "text-accent" : "text-destructive"}`}>
-                      {(gcalCfg?.connected && gcalCfg?.access_token) ? "Conectado" : (gcalCfg?.connected && !gcalCfg?.access_token) ? "Tokens ausentes — reconecte" : "Não conectado"}
-                    </p>
-                  </div>
-                </div>
-                <Button
-                  variant={(gcalCfg?.connected && gcalCfg?.access_token) ? "outline" : "hero"}
-                  size="sm"
-                  onClick={() => setGcalDialogOpen(true)}
-                >
-                  {(gcalCfg?.connected && gcalCfg?.access_token) ? "Configurar" : (gcalCfg?.connected && !gcalCfg?.access_token) ? "Reconectar" : "Conectar"}
-                </Button>
-              </div>
+              {/* Google Calendar — temporariamente desabilitado */}
             </div>
 
             {/* Google Calendar Dialog */}
