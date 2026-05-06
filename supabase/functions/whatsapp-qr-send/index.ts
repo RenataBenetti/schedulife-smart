@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { getUazApiConfig, uazApiFetch } from "../_shared/uazapi.ts";
+import { getUazApiConfigForToken, uazApiFetch } from "../_shared/uazapi.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -7,15 +7,12 @@ const corsHeaders = {
 };
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   const authHeader = req.headers.get("Authorization");
   if (!authHeader?.startsWith("Bearer ")) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
-      status: 401,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 
@@ -23,7 +20,6 @@ Deno.serve(async (req) => {
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
-
   const authSupabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_ANON_KEY")!,
@@ -33,18 +29,15 @@ Deno.serve(async (req) => {
   const { data: { user }, error: authError } = await authSupabase.auth.getUser();
   if (authError || !user) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
-      status: 401,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 
   try {
     const { workspace_id, to_phone, message } = await req.json();
-
     if (!workspace_id || !to_phone) {
       return new Response(JSON.stringify({ error: "workspace_id e to_phone são obrigatórios" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
@@ -54,18 +47,16 @@ Deno.serve(async (req) => {
       .eq("workspace_id", workspace_id)
       .maybeSingle();
 
-    if (!instance || instance.status !== "connected") {
+    if (!instance || instance.status !== "connected" || !instance.instance_token) {
       return new Response(JSON.stringify({ error: "WhatsApp QR não está conectado" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const config = getUazApiConfig();
+    const config = getUazApiConfigForToken(instance.instance_token);
     if (!config) {
       return new Response(JSON.stringify({ error: "Servidor QR não configurado" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
@@ -75,9 +66,7 @@ Deno.serve(async (req) => {
 
     const sendRes = await uazApiFetch(config, {
       method: "POST",
-      pathCandidates: [
-        "/send/text",
-      ],
+      pathCandidates: ["/send/text"],
       body: { number: phone, text: textMessage },
     });
 
@@ -87,8 +76,7 @@ Deno.serve(async (req) => {
   } catch (err: any) {
     console.error("[whatsapp-qr-send] Error:", err);
     return new Response(JSON.stringify({ error: err.message }), {
-      status: 502,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });
