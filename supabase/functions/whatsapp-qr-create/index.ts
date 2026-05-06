@@ -84,10 +84,11 @@ Deno.serve(async (req) => {
       try {
         const initRes = await uazApiFetch(adminConfig, {
           method: "POST",
-          pathCandidates: ["/instance/init", "/v1/instance/init"],
-          body: { name: instanceName, instanceName, instance: instanceName },
+          authType: "admin",
+          pathCandidates: ["/instance/init"],
+          body: { name: instanceName, systemName: "agendix" },
         });
-        console.log(`[whatsapp-qr-create] Init path=${initRes.pathUsed} auth=${initRes.authMode}`);
+        console.log(`[whatsapp-qr-create] Init path=${initRes.pathUsed}`);
         instanceToken = extractInstanceToken(initRes.data);
         if (!instanceToken) {
           console.error("[whatsapp-qr-create] init returned no token:", JSON.stringify(initRes.data));
@@ -97,8 +98,12 @@ Deno.serve(async (req) => {
           }), { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } });
         }
       } catch (e: any) {
-        console.error("[whatsapp-qr-create] init failed:", e?.message);
-        return new Response(JSON.stringify({ error: `Falha em /instance/init: ${e?.message}` }), {
+        const msg = String(e?.message ?? "");
+        console.error("[whatsapp-qr-create] init failed:", msg);
+        const friendly = msg.includes("401")
+          ? "Token administrativo da UazAPI inválido para este servidor. Verifique UAZAPI_ADMIN_TOKEN e UAZAPI_BASE_URL."
+          : `Falha em /instance/init: ${msg}`;
+        return new Response(JSON.stringify({ error: friendly }), {
           status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
@@ -111,11 +116,12 @@ Deno.serve(async (req) => {
     try {
       const statusRes = await uazApiFetch(config, {
         method: "GET",
-        pathCandidates: ["/instance/status", "/v1/instance/status"],
+        authType: "instance",
+        pathCandidates: ["/instance/status"],
       });
       const state = extractStatus(statusRes.data);
       isConnected = isConnectedStatus(state);
-      console.log(`[whatsapp-qr-create] Status path=${statusRes.pathUsed} state=${state}`);
+      console.log(`[whatsapp-qr-create] Status state=${state}`);
     } catch (e) {
       console.warn("[whatsapp-qr-create] status check failed (continuing):", e);
     }
@@ -124,7 +130,8 @@ Deno.serve(async (req) => {
       try {
         await uazApiFetch(config, {
           method: "POST",
-          pathCandidates: ["/instance/disconnect", "/v1/instance/disconnect"],
+          authType: "instance",
+          pathCandidates: ["/instance/disconnect"],
           body: {},
         });
         await new Promise((r) => setTimeout(r, 1200));
@@ -135,7 +142,8 @@ Deno.serve(async (req) => {
 
     const connectRes = await uazApiFetch(config, {
       method: "POST",
-      pathCandidates: ["/instance/connect", "/v1/instance/connect"],
+      authType: "instance",
+      pathCandidates: ["/instance/connect"],
       body: {},
     });
     console.log(`[whatsapp-qr-create] Connect path=${connectRes.pathUsed}`);
@@ -145,7 +153,8 @@ Deno.serve(async (req) => {
       try {
         const qrRes = await uazApiFetch(config, {
           method: "GET",
-          pathCandidates: ["/instance/qr", "/v1/instance/qr", "/instance/qrcode", "/v1/instance/qrcode"],
+          authType: "instance",
+          pathCandidates: ["/instance/qr", "/instance/qrcode"],
         });
         qrBase64 = extractQrBase64(qrRes.data);
       } catch (e) {
@@ -162,11 +171,12 @@ Deno.serve(async (req) => {
     try {
       await uazApiFetch(config, {
         method: "POST",
-        pathCandidates: ["/webhook/set", "/v1/webhook/set", "/webhook"],
+        authType: "instance",
+        pathCandidates: ["/webhook"],
         body: {
           url: webhookUrl,
           enabled: true,
-          events: ["connection", "qrcode", "status", "CONNECTION_UPDATE", "QRCODE_UPDATED", "STATUS_INSTANCE"],
+          events: ["connection", "qrcode", "status", "messages"],
         },
       });
     } catch (e) {
