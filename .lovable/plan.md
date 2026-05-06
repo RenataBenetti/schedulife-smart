@@ -1,27 +1,36 @@
-## Atualizar token da UazAPI
+Identifiquei que o erro continua no mesmo ponto: a função `whatsapp-qr-create` está falhando ao chamar `/instance/init` da UazAPI com `401 Unauthorized`.
 
-O erro 401 "Invalid token" vem da UazAPI rejeitando o valor atual do secret `UAZAPI_INSTANCE_TOKEN`. Não há nada a corrigir no código — todas as três variantes de autenticação (Bearer, header `token`, query param) já são tentadas pela camada `_shared/uazapi.ts` e todas retornam 401, o que confirma que o token armazenado está expirado ou inválido.
+O problema provável agora não é só o valor do token, mas também a forma como a função está autenticando na UazAPI. A documentação/SDK público da UazAPI v2 indica que:
 
-### Passos
+- operações admin, como `POST /instance/init`, usam somente o header `admintoken`;
+- operações da instância, como `/instance/status`, `/instance/connect` e `/send/text`, usam o header `token` com o token da instância;
+- o código atual tenta Bearer, header `token` e query string antes/depois, o que pode continuar gerando 401 no endpoint admin.
 
-1. **Você gera um novo token no painel da UazAPI**
-   - Acesse o painel da UazAPI onde sua instância está hospedada
-   - Vá em configurações da instância → tokens / API keys
-   - Gere (ou copie) um novo token de instância válido
-   - Se houver também um `admintoken`, anote — mas o principal é o `UAZAPI_INSTANCE_TOKEN`
+Plano para corrigir:
 
-2. **Eu solicito a atualização do secret**
-   - Após sua confirmação, vou disparar o pedido para atualizar `UAZAPI_INSTANCE_TOKEN` no projeto
-   - Você cola o novo valor na caixa segura — eu não vejo o conteúdo
-   - Opcionalmente, atualizamos também `UAZAPI_BASE_URL` se o servidor mudou, e `UAZAPI_ADMIN_TOKEN` se aplicável
+1. Ajustar o helper da UazAPI
+   - Separar claramente os modos de autenticação:
+     - `admin`: envia apenas `admintoken`.
+     - `instance`: envia apenas `token`.
+   - Manter logs seguros com tokens mascarados.
+   - Remover/evitar tentativas inadequadas como `Authorization: Bearer` e query string para endpoints UazAPI v2.
 
-3. **Validação**
-   - Após salvar, testo a função `whatsapp-qr-create` via curl para o seu workspace
-   - Confirmo nos logs que a resposta deixa de ser 401 e o QR é gerado
-   - Se o workspace antigo (`agendix-45bb3ba3`) estava causando ruído, podemos remover a linha órfã da tabela `whatsapp_instances_qr`
+2. Corrigir criação do QR Code
+   - Em `whatsapp-qr-create`, chamar `/instance/init` com autenticação admin correta.
+   - Usar body compatível com UazAPI v2: `name` e, se necessário, `systemName`.
+   - Melhorar a extração do token retornado (`instance.token`, além dos formatos já previstos).
+   - Em seguida, usar o token da instância para `/instance/connect`, `/instance/status` e webhook.
 
-### Observações
+3. Corrigir funções dependentes do token da instância
+   - Garantir que `whatsapp-qr-status`, `whatsapp-qr-send`, `send-whatsapp-message` e `whatsapp-worker` usem autenticação por header `token`, não Bearer/query.
+   - Garantir que workspaces antigos sem `instance_token` retornem uma mensagem clara pedindo reconexão por QR Code.
 
-- Nenhum arquivo do código será alterado — só o secret
-- O workspace principal (`0c91acd4`) continua funcionando normalmente durante a troca; o novo token passa a valer instantaneamente para as próximas chamadas
-- Se preferir, posso já deixar preparado um teste rápido (`whatsapp-qr-status`) para rodar logo após a atualização
+4. Validar sem expor segredo
+   - Consultar novamente logs da função após a alteração.
+   - Testar a função `whatsapp-qr-create` pelo backend usando a sessão atual.
+   - Se continuar 401 mesmo com header `admintoken`, o próximo diagnóstico será: o token salvo ainda não é o Admin Token correto para o `UAZAPI_BASE_URL` configurado, ou o Base URL aponta para outra instância/ambiente da UazAPI.
+
+5. Entregar uma mensagem de erro mais útil no app
+   - Trocar o erro genérico “Erro ao criar instância” por orientação mais clara quando a falha for 401: “Token administrativo da UazAPI inválido para este servidor”.
+
+Também notei que há registros antigos em `whatsapp_instances_qr` marcados como `connected`, mas sem `instance_token`. Esses registros não conseguem mais enviar mensagens pelo fluxo novo; eles precisarão reconectar para salvar o token da instância corretamente.

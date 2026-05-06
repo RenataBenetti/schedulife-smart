@@ -1,12 +1,20 @@
+// UazAPI v2 helper
+// Auth rules (per official SDK):
+//  - admin endpoints (/instance/init, /instance/all, ...) use header: admintoken
+//  - instance endpoints (/instance/status, /instance/connect, /send/text, ...) use header: token
+
+export type AuthType = "admin" | "instance";
+
 export type UazApiConfig = {
   baseUrl: string;
-  token: string; // instance-specific token (or admin token for init)
   adminToken?: string;
+  instanceToken?: string;
 };
 
 type FetchOptions = {
-  method: "GET" | "POST" | "DELETE";
+  method: "GET" | "POST" | "DELETE" | "PUT";
   pathCandidates: string[];
+  authType: AuthType;
   body?: unknown;
   timeoutMs?: number;
 };
@@ -16,7 +24,6 @@ type UazApiResult = {
   status: number;
   data: any;
   pathUsed: string;
-  authMode: "bearer" | "token_header" | "query";
 };
 
 export function getUazApiBase(): { baseUrl: string; adminToken?: string } | null {
@@ -26,39 +33,18 @@ export function getUazApiBase(): { baseUrl: string; adminToken?: string } | null
   return { baseUrl, adminToken };
 }
 
-/** Build a config for a specific instance token. */
+/** Config for a specific instance token. */
 export function getUazApiConfigForToken(token: string): UazApiConfig | null {
   const base = getUazApiBase();
   if (!base) return null;
-  return { baseUrl: base.baseUrl, token: token.trim(), adminToken: base.adminToken };
+  return { baseUrl: base.baseUrl, adminToken: base.adminToken, instanceToken: token.trim() };
 }
 
-/** Build a config using the admin token (for /instance/init and admin-level ops). */
+/** Config for admin-level operations. */
 export function getUazApiAdminConfig(): UazApiConfig | null {
   const base = getUazApiBase();
   if (!base || !base.adminToken) return null;
-  return { baseUrl: base.baseUrl, token: base.adminToken, adminToken: base.adminToken };
-}
-
-/** Legacy fallback: uses UAZAPI_INSTANCE_TOKEN if set (kept for compat). */
-export function getUazApiConfig(): UazApiConfig | null {
-  const base = getUazApiBase();
-  const token = Deno.env.get("UAZAPI_INSTANCE_TOKEN")?.trim();
-  if (!base || !token) return null;
-  return { baseUrl: base.baseUrl, token, adminToken: base.adminToken };
-}
-
-function withQuery(path: string, config: UazApiConfig): string {
-  const params = new URLSearchParams();
-  params.set("token", config.token);
-  if (config.adminToken) params.set("admintoken", config.adminToken);
-  return path.includes("?") ? `${path}&${params.toString()}` : `${path}?${params.toString()}`;
-}
-
-function redactSecretsInPath(path: string): string {
-  return path
-    .replace(/([?&]token=)[^&]+/gi, "$1***")
-    .replace(/([?&]admintoken=)[^&]+/gi, "$1***");
+  return { baseUrl: base.baseUrl, adminToken: base.adminToken };
 }
 
 function parseMaybeJson(raw: string): any {
@@ -68,73 +54,55 @@ function parseMaybeJson(raw: string): any {
 
 export async function uazApiFetch(config: UazApiConfig, options: FetchOptions): Promise<UazApiResult> {
   const timeoutMs = options.timeoutMs ?? 30000;
-  const body = options.body ? JSON.stringify(options.body) : undefined;
-  const attempts: Array<{ path: string; auth: string; status: number; response: any }> = [];
+  const body = options.body !== undefined ? JSON.stringify(options.body) : undefined;
 
-  const authVariants: Array<{
-    mode: "bearer" | "token_header" | "query";
-    headers: Record<string, string>;
-    buildPath: (p: string) => string;
-  }> = [
-    {
-      mode: "bearer",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${config.token}` },
-      buildPath: (p) => p,
-    },
-    {
-      mode: "token_header",
-      headers: {
-        "Content-Type": "application/json",
-        token: config.token,
-        ...(config.adminToken ? { admintoken: config.adminToken } : {}),
-      },
-      buildPath: (p) => p,
-    },
-    {
-      mode: "query",
-      headers: { "Content-Type": "application/json" },
-      buildPath: (p) => withQuery(p, config),
-    },
-  ];
+  const headers: Record<string, string> = {
+    "Accept": "application/json",
+    "Content-Type": "application/json",
+  };
+  if (options.authType === "admin") {
+    if (!config.adminToken) throw new Error("UazAPI admin token não configurado.");
+    headers["admintoken"] = config.adminToken;
+  } else {
+    if (!config.instanceToken) throw new Error("UazAPI instance token não fornecido.");
+    headers["token"] = config.instanceToken;
+  }
+
+  const attempts: Array<{ path: string; status: number; response: any }> = [];
 
   for (const path of options.pathCandidates) {
-    for (const auth of authVariants) {
-      const signal = AbortSignal.timeout(timeoutMs);
-      const finalPath = auth.buildPath(path);
-      const url = `${config.baseUrl}${finalPath}`;
-      const safePath = redactSecretsInPath(finalPath);
-
-      try {
-        const res = await fetch(url, {
-          method: options.method,
-          headers: auth.headers,
-          ...(body ? { body } : {}),
-          signal,
-        });
-
-        const text = await res.text();
-        const data = parseMaybeJson(text);
-        attempts.push({ path: safePath, auth: auth.mode, status: res.status, response: data });
-
-        if (res.ok) {
-          return { ok: true, status: res.status, data, pathUsed: safePath, authMode: auth.mode };
-        }
-        if ([401, 403, 404, 405].includes(res.status)) continue;
-      } catch (err: any) {
-        attempts.push({ path: safePath, auth: auth.mode, status: 0, response: { error: err?.message ?? "network_error" } });
+    const signal = AbortSignal.timeout(timeoutMs);
+    const url = `${config.baseUrl}${path}`;
+    try {
+      const res = await fetch(url, {
+        method: options.method,
+        headers,
+        ...(body ? { body } : {}),
+        signal,
+      });
+      const text = await res.text();
+      const data = parseMaybeJson(text);
+      attempts.push({ path, status: res.status, response: data });
+      if (res.ok) return { ok: true, status: res.status, data, pathUsed: path };
+      if ([401, 403, 404, 405].includes(res.status)) continue;
+      // other status: stop and report
+      throw new Error(`UazAPI ${path} -> ${res.status}: ${text.slice(0, 300)}`);
+    } catch (err: any) {
+      if (err?.name === "TimeoutError" || err?.name === "AbortError") {
+        attempts.push({ path, status: 0, response: { error: "timeout" } });
         continue;
       }
+      attempts.push({ path, status: 0, response: { error: err?.message ?? "network_error" } });
+      continue;
     }
   }
 
   const summary = attempts
-    .map((a) => `[${a.status}] ${a.auth} ${a.path} => ${JSON.stringify(a.response)}`)
+    .map((a) => `[${a.status}] ${a.path} => ${JSON.stringify(a.response).slice(0, 200)}`)
     .join(" | ");
-
-  throw new Error(`UazAPI request failed: ${summary}`);
+  throw new Error(`UazAPI request failed (auth=${options.authType}): ${summary}`);
 }
 
-/** Extract instance token from /instance/init response. */
 export function extractInstanceToken(data: any): string | null {
   const candidates = [
     data?.token,
@@ -162,7 +130,6 @@ export function extractStatus(data: any): string {
     if (candidate && typeof candidate === "object") {
       const nested = (candidate as Record<string, unknown>)?.state ?? (candidate as Record<string, unknown>)?.status;
       if (typeof nested === "string" && nested.trim()) return nested;
-      if (typeof nested === "number" || typeof nested === "boolean") return String(nested);
     }
   }
   return "unknown";
@@ -170,11 +137,6 @@ export function extractStatus(data: any): string {
 
 export function isConnectedStatus(status: unknown): boolean {
   if (typeof status === "boolean") return status;
-  if (status && typeof status === "object") {
-    const obj = status as Record<string, unknown>;
-    if (typeof obj.connected === "boolean") return obj.connected;
-    if (typeof obj.isConnected === "boolean") return obj.isConnected;
-  }
   const normalized = String(status ?? "").toLowerCase();
   return (
     normalized === "connected" || normalized === "open" || normalized === "online" ||
@@ -191,9 +153,10 @@ export function extractQrBase64(data: any): string | null {
   const candidates = [
     data?.qrcode, data?.base64, data?.qr,
     data?.qrcode?.base64, data?.qrcode?.qr, data?.qrcode?.url,
+    data?.instance?.qrcode, data?.instance?.paircode,
     data?.data?.qrcode, data?.data?.base64, data?.data?.qr,
     data?.data?.qrcode?.base64, data?.data?.qrcode?.qr, data?.data?.qrcode?.url,
-    data?.data?.instance?.qrcode, data?.instance?.qrcode,
+    data?.data?.instance?.qrcode,
   ];
   for (const candidate of candidates) {
     if (typeof candidate !== "string") continue;
