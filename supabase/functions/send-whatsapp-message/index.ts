@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { getUazApiConfig, uazApiFetch } from "../_shared/uazapi.ts";
+import { getUazApiConfigForToken, uazApiFetch } from "../_shared/uazapi.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
