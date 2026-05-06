@@ -1,36 +1,99 @@
-Identifiquei que o erro continua no mesmo ponto: a função `whatsapp-qr-create` está falhando ao chamar `/instance/init` da UazAPI com `401 Unauthorized`.
+## Diagnóstico
 
-O problema provável agora não é só o valor do token, mas também a forma como a função está autenticando na UazAPI. A documentação/SDK público da UazAPI v2 indica que:
+Investiguei o banco e os logs das funções e identifiquei **três problemas distintos** que estão impedindo as notificações de chegarem por WhatsApp.
 
-- operações admin, como `POST /instance/init`, usam somente o header `admintoken`;
-- operações da instância, como `/instance/status`, `/instance/connect` e `/send/text`, usam o header `token` com o token da instância;
-- o código atual tenta Bearer, header `token` e query string antes/depois, o que pode continuar gerando 401 no endpoint admin.
+### 1. Lembretes de sessão (`process-message-rules` + `whatsapp-worker`)
+- A regra ativa do seu workspace **está rodando**: a cada 1 min `process-message-rules` enfileira lembretes corretamente.
+- Porém, **TODAS** as últimas tentativas na fila `whatsapp_outbox` estão com `status = failed` e o erro é sempre o mesmo:
+  ```
+  UazAPI request failed: [401] bearer /send/text ... | [401] token_header /send/text ... | [401] query /send/text?token=*** ...
+  ```
+- Esse erro é da **versão antiga** do `whatsapp-worker` (que tentava 3 estratégias: Bearer, header `token` e query string). Já reescrevemos o `_shared/uazapi.ts` e o worker para usar só `token` header, **mas o worker ainda não foi redeployado** — as mensagens novas continuariam falhando exatamente da mesma forma até deploy.
 
-Plano para corrigir:
+### 2. Resumo diário (`daily-summary`)
+- A função `daily-summary` **nunca foi atualizada** junto com o resto do fluxo QR. Ela ainda:
+  - Lê uma variável global inexistente `UAZAPI_INSTANCE_TOKEN` (hoje cada workspace tem seu próprio `instance_token` na tabela `whatsapp_instances_qr`).
+  - Chama o endpoint errado `/message/sendText?instance=...` com `Authorization: Bearer` (formato UazAPI v1, não v2).
+- Por isso a notificação "Resumo do dia" **aparece no sino** (é inserida em `notifications`), mas **nunca sai por WhatsApp**.
 
-1. Ajustar o helper da UazAPI
-   - Separar claramente os modos de autenticação:
-     - `admin`: envia apenas `admintoken`.
-     - `instance`: envia apenas `token`.
-   - Manter logs seguros com tokens mascarados.
-   - Remover/evitar tentativas inadequadas como `Authorization: Bearer` e query string para endpoints UazAPI v2.
+### 3. Alerta de pagamento pendente
+- Não existe nenhuma função/cron que processe `notify_payment_pending`. O toggle está ligado mas **não há código** que envie esse alerta. Vamos criar.
 
-2. Corrigir criação do QR Code
-   - Em `whatsapp-qr-create`, chamar `/instance/init` com autenticação admin correta.
-   - Usar body compatível com UazAPI v2: `name` e, se necessário, `systemName`.
-   - Melhorar a extração do token retornado (`instance.token`, além dos formatos já previstos).
-   - Em seguida, usar o token da instância para `/instance/connect`, `/instance/status` e webhook.
+### O que está funcionando
+- As notificações no sino do dashboard (ícone de sino) estão sendo criadas corretamente em `notifications` — você pode confirmar abrindo o sino.
+- A conexão do WhatsApp do seu workspace (`5519981628004`) está como `connected` e tem `instance_token` salvo.
 
-3. Corrigir funções dependentes do token da instância
-   - Garantir que `whatsapp-qr-status`, `whatsapp-qr-send`, `send-whatsapp-message` e `whatsapp-worker` usem autenticação por header `token`, não Bearer/query.
-   - Garantir que workspaces antigos sem `instance_token` retornem uma mensagem clara pedindo reconexão por QR Code.
+---
 
-4. Validar sem expor segredo
-   - Consultar novamente logs da função após a alteração.
-   - Testar a função `whatsapp-qr-create` pelo backend usando a sessão atual.
-   - Se continuar 401 mesmo com header `admintoken`, o próximo diagnóstico será: o token salvo ainda não é o Admin Token correto para o `UAZAPI_BASE_URL` configurado, ou o Base URL aponta para outra instância/ambiente da UazAPI.
+## Plano de correção
 
-5. Entregar uma mensagem de erro mais útil no app
-   - Trocar o erro genérico “Erro ao criar instância” por orientação mais clara quando a falha for 401: “Token administrativo da UazAPI inválido para este servidor”.
+### Passo 1 — Redeploy do `whatsapp-worker` e `send-whatsapp-message`
+As funções já têm o código novo (header `token` apenas), mas precisam ser deployadas. Após o deploy, os próximos lembretes da fila vão usar a autenticação correta da UazAPI v2.
 
-Também notei que há registros antigos em `whatsapp_instances_qr` marcados como `connected`, mas sem `instance_token`. Esses registros não conseguem mais enviar mensagens pelo fluxo novo; eles precisarão reconectar para salvar o token da instância corretamente.
+### Passo 2 — Reescrever `supabase/functions/daily-summary/index.ts`
+- Trocar a lógica de envio para usar o helper `getUazApiConfigForToken` + `uazApiFetch` (mesmo padrão de `send-whatsapp-message`).
+- Buscar o `instance_token` da `whatsapp_instances_qr` por workspace (em vez do secret global).
+- Usar o endpoint correto `/send/text` com header `token`.
+- Manter a inserção em `notifications` (já funciona).
+- Adicionar log de erro em `notifications` quando o envio falhar, para você ver no sino que algo deu errado.
+
+### Passo 3 — Criar função `payment-pending-check`
+- Edge function que roda 1x ao dia (cron) e:
+  - Para cada workspace com `notify_payment_pending = true`,
+  - Busca `payment_links` com `paid = false` e `created_at < now() - 3 days`,
+  - Envia 1 mensagem agregada via WhatsApp para o telefone do dono (`whatsapp_instances_qr.phone_number`),
+  - Cria notificação no sino.
+- Agendar via `pg_cron` para 09:00 BRT (12:00 UTC) diariamente.
+
+### Passo 4 — Reprocessar mensagens falhadas (opcional)
+Os 4 lembretes do seu workspace que falharam por 401 já passaram da hora; **não faz sentido reenviar** (cliente já passou pela sessão). Vou apenas marcar uma flag de visualização para limpar a fila visualmente.
+
+### Passo 5 — Melhorar o erro retornado ao usuário
+- Quando o `whatsapp-worker` falhar com 401, criar uma `notification` automática no sino do tipo `system_error` dizendo "WhatsApp desconectado — reconecte em Configurações → Integrações". Hoje o erro fica só na coluna `last_error` e o usuário não percebe.
+
+### Passo 6 — Teste end-to-end
+- Disparar manualmente `process-message-rules` e `daily-summary` via `curl_edge_functions` e verificar:
+  - `whatsapp_outbox.status = sent`
+  - `message_logs.status = sent`
+  - Mensagem chegou no telefone `5519981628004`.
+
+---
+
+## Detalhes técnicos
+
+```text
+Fluxo atual (quebrado)
+process-message-rules ─► whatsapp_outbox(queued) ─► whatsapp-worker
+                                                       │
+                                                       └─ uazApiFetch (CÓDIGO ANTIGO em produção)
+                                                          → 401 Bearer / 401 token / 401 query
+                                                          → status=failed
+
+daily-summary (cron 10:00 UTC)
+   └─ fetch /message/sendText (endpoint errado)
+      Authorization: Bearer UAZAPI_INSTANCE_TOKEN (secret inexistente)
+      → falha silenciosa, mas grava notifications row
+```
+
+```text
+Fluxo após o fix
+process-message-rules ─► whatsapp_outbox ─► whatsapp-worker (REDEPLOY)
+                                              └─ uazApiFetch(authType:"instance")
+                                                 POST /send/text   header: token=<instance_token>
+                                                 → 200 ok → status=sent
+
+daily-summary (cron)
+   └─ por workspace: lê instance_token da DB
+      → uazApiFetch(authType:"instance") POST /send/text
+      → notifications + message_logs
+
+payment-pending-check (NOVA, cron 12:00 UTC diário)
+   └─ workspaces com notify_payment_pending=true
+      → resumo de pagamentos vencidos > 3 dias
+      → uazApiFetch + notifications
+```
+
+---
+
+## O que você precisa fazer
+Apenas **aprovar este plano**. Não preciso de mais nenhum dado da UazAPI — o token correto da sua instância já está salvo no banco (não dependemos mais do `UAZAPI_INSTANCE_TOKEN` global).
