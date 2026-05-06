@@ -1,0 +1,1 @@
+ALTER TABLE public.whatsapp_instances_qr ADD COLUMN IF NOT EXISTS instance_token TEXT;
