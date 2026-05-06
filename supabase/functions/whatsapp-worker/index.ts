@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { getUazApiConfig, uazApiFetch } from "../_shared/uazapi.ts";
+import { getUazApiConfigForToken, uazApiFetch } from "../_shared/uazapi.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -17,12 +17,17 @@ Deno.serve(async (req) => {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
   );
 
-  const config = getUazApiConfig();
-  if (!config) {
-    return new Response(
-      JSON.stringify({ error: "UazAPI not configured" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+  const tokenCache = new Map<string, string | null>();
+  async function getInstanceTokenFor(workspaceId: string): Promise<string | null> {
+    if (tokenCache.has(workspaceId)) return tokenCache.get(workspaceId)!;
+    const { data } = await supabaseAdmin
+      .from("whatsapp_instances_qr")
+      .select("instance_token")
+      .eq("workspace_id", workspaceId)
+      .maybeSingle();
+    const tok = data?.instance_token ?? null;
+    tokenCache.set(workspaceId, tok);
+    return tok;
   }
 
   try {
@@ -98,11 +103,15 @@ Deno.serve(async (req) => {
         const cleanPhone = msg.to_phone.replace(/\D/g, "");
         const phone = cleanPhone.startsWith("55") ? cleanPhone : `55${cleanPhone}`;
 
+        const instanceToken = await getInstanceTokenFor(msg.workspace_id);
+        const config = instanceToken ? getUazApiConfigForToken(instanceToken) : null;
+        if (!config) {
+          throw new Error("WhatsApp não conectado para este workspace (token de instância ausente).");
+        }
+
         await uazApiFetch(config, {
           method: "POST",
-          pathCandidates: [
-            "/send/text",
-          ],
+          pathCandidates: ["/send/text"],
           body: { number: phone, text: fullText },
           timeoutMs: 30000,
         });
