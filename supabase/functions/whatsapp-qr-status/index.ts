@@ -2,7 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
   extractPhone,
   extractStatus,
-  getUazApiConfig,
+  getUazApiConfigForToken,
   isConnectedStatus,
   uazApiFetch,
 } from "../_shared/uazapi.ts";
@@ -13,15 +13,12 @@ const corsHeaders = {
 };
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   const authHeader = req.headers.get("Authorization");
   if (!authHeader?.startsWith("Bearer ")) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
-      status: 401,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 
@@ -29,7 +26,6 @@ Deno.serve(async (req) => {
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
-
   const authSupabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_ANON_KEY")!,
@@ -39,18 +35,15 @@ Deno.serve(async (req) => {
   const { data: { user }, error: authError } = await authSupabase.auth.getUser();
   if (authError || !user) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
-      status: 401,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 
   try {
     const { workspace_id } = await req.json();
-
     if (!workspace_id) {
       return new Response(JSON.stringify({ error: "workspace_id é obrigatório" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
@@ -60,32 +53,27 @@ Deno.serve(async (req) => {
       .eq("workspace_id", workspace_id)
       .maybeSingle();
 
-    if (!instance || !instance.instance_key) {
+    if (!instance || !instance.instance_key || !instance.instance_token) {
       return new Response(JSON.stringify({ status: "disconnected", connected: false }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const config = getUazApiConfig();
+    const config = getUazApiConfigForToken(instance.instance_token);
     if (!config) {
       return new Response(JSON.stringify({ status: instance.status, connected: instance.status === "connected" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const encodedInstance = encodeURIComponent(instance.instance_key);
     const statusRes = await uazApiFetch(config, {
       method: "GET",
-      pathCandidates: [
-        `/instance/status?instance=${encodedInstance}`,
-        `/v1/instance/status?instance=${encodedInstance}`,
-      ],
+      pathCandidates: ["/instance/status", "/v1/instance/status"],
     });
 
     const state = extractStatus(statusRes.data);
     const connected = isConnectedStatus(state);
     const newStatus = connected ? "connected" : "disconnected";
-
     const phoneNumber = extractPhone(statusRes.data);
     const updatedPhone = phoneNumber || instance.phone_number;
 
@@ -101,18 +89,12 @@ Deno.serve(async (req) => {
     }
 
     return new Response(JSON.stringify({
-      status: newStatus,
-      connected,
-      phone_number: updatedPhone,
-      instance_key: instance.instance_key,
-    }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+      status: newStatus, connected, phone_number: updatedPhone, instance_key: instance.instance_key,
+    }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (err: any) {
     console.error("[whatsapp-qr-status] Error:", err);
     return new Response(JSON.stringify({ error: err.message }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });
