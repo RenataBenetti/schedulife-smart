@@ -888,6 +888,7 @@ export type Database = {
           created_at: string
           id: string
           instance_key: string | null
+          instance_token: string | null
           phone_number: string | null
           qr_code: string | null
           status: string
@@ -898,6 +899,7 @@ export type Database = {
           created_at?: string
           id?: string
           instance_key?: string | null
+          instance_token?: string | null
           phone_number?: string | null
           qr_code?: string | null
           status?: string
@@ -908,6 +910,7 @@ export type Database = {
           created_at?: string
           id?: string
           instance_key?: string | null
+          instance_token?: string | null
           phone_number?: string | null
           qr_code?: string | null
           status?: string
