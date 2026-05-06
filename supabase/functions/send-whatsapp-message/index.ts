@@ -75,6 +75,7 @@ Deno.serve(async (req) => {
 
     const sendRes = await uazApiFetch(config, {
       method: "POST",
+      authType: "instance",
       pathCandidates: ["/send/text"],
       body: { number: fullPhone, text: message },
     });
